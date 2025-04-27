@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>openWakeWord Recording Client</title>
+  <style>
+    body {
+      text-align: center;
+      font-family: 'Roboto', sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    
+    #startButton {
+      padding: 15px 30px;
+      font-size: 18px;
+      background-color: #03A9F4;
+      border: none;
+      border-radius: 4px;
+      color: white;
+      cursor: pointer;
+      outline: none;
+      transition: background-color 0.3s;
+    }
+    
+    #startButton.listening {
+      background-color: #F44336;
+    }
+    
+    .status-box {
+      margin: 20px 0;
+      padding: 15px;
+      border-radius: 4px;
+      background-color: #F5F5F5;
+      font-weight: bold;
+    }
+    
+    .recording {
+      background-color: #FFCDD2;
+      animation: pulse 1s infinite;
+    }
+    
+    @keyframes pulse {
+      0% { opacity: 1; }
+      50% { opacity: 0.7; }
+      100% { opacity: 1; }
+    }
+
+    table {
+      margin: 20px auto;
+      border-collapse: collapse;
+      width: 100%;
+    }
+    
+    th, td {
+      border: 1px solid #E0E0E0;
+      padding: 10px;
+      text-align: left;
+    }
+    
+    th {
+      background-color: #F5F5F5;
+    }
+    
+    .log-area {
+      height: 200px;
+      overflow-y: auto;
+      border: 1px solid #E0E0E0;
+      padding: 10px;
+      margin-top: 10px;
+      text-align: left;
+      font-family: monospace;
+      background-color: #FAFAFA;
+    }
+    
+    @keyframes fadeOut {
+      from { opacity: 1; }
+      to { opacity: 0; }
+    }
+
+    .detected-animation {
+      animation: fadeOut 2s forwards;
+    }
+  </style>
+</head>
+<body>
+  <h1>openWakeWord Recording Client</h1>
+  <p>This application listens for wake words like "Hey Mycroft" or "Hey Jarvis" and automatically records what you say.</p>
+  <p>Recording stops when you say "ENGAGE", pause for 2.5 seconds, or after 12 seconds total.</p>
+  
+  <button id="startButton">Start Microphone</button>
+  
+  <div id="statusBox" class="status-box">Status: Not connected</div>
+  
+  <div class="log-area" id="logArea"></div>
+
+  <h2>Available Models</h2>
+  <table>
+    <tr>
+      <th>Wake Word</th>
+      <th>Status</th>
+    </tr>
+    <tr>
+      <td>Loading models...</td>
+      <td></td>
+    </tr>
+  </table>
+
+  <script>
+  // Utility function to log messages
+  function logMessage(message) {
+    const logArea = document.getElementById('logArea');
+    const timestamp = new Date().toLocaleTimeString();
+    const logEntry = document.createElement('div');
+    logEntry.textContent = `${timestamp}: ${message}`;
+    logArea.appendChild(logEntry);
+    logArea.scrollTop = logArea.scrollHeight; // Auto-scroll to bottom
+  }
+  
+  // Update status display
+  function updateStatus(message, isRecording = false) {
+    const statusBox = document.getElementById('statusBox');
+    statusBox.textContent = `Status: ${message}`;
+    
+    if (isRecording) {
+      statusBox.classList.add('recording');
+    } else {
+      statusBox.classList.remove('recording');
+    }
+  }
+  
+  // Variables
+  let ws = null;
+  let audioStream = null;
+  let audioContext = null;
+  let recorder = null;
+  let volume = null;
+  let sampleRate = null;
+  let isStreaming = false;
+  let wsReconnectTimeout = null;
+  
+  // Initialize WebSocket connection
+  function setupWebSocket() {
+    // Clear any pending reconnection
+    if (wsReconnectTimeout) {
+      clearTimeout(wsReconnectTimeout);
+      wsReconnectTimeout = null;
+    }
+    
+    // Close existing connection if open
+    if (ws) {
+      try {
+        ws.close();
+      } catch (e) {
+        console.error("Error closing existing websocket:", e);
+      }
+    }
+    
+    logMessage('Setting up WebSocket connection...');
+    
+    // Create new WebSocket connection
+    try {
+      ws = new WebSocket('ws://localhost:9000/ws');
+      
+      // When the websocket connection is open
+      ws.onopen = function() {
+        logMessage('WebSocket connection established');
+        updateStatus('Connected to server');
+        
+        // Send sample rate once connection is established
+        if (sampleRate) {
+          logMessage(`Sending sample rate: ${sampleRate}Hz`);
+          ws.send(sampleRate.toString());
+        } else {
+          logMessage('No sample rate available yet');
+        }
+      };
+      
+      // When the websocket connection is closed
+      ws.onclose = function(event) {
+        logMessage(`WebSocket connection closed: Code ${event.code}, Reason: ${event.reason || 'None'}`);
+        updateStatus('Disconnected from server');
+        document.getElementById('startButton').classList.remove('listening');
+        document.getElementById('startButton').textContent = 'Start Microphone';
+        isStreaming = false;
+        
+        // Attempt to reconnect if we were streaming
+        if (isStreaming) {
+          logMessage('Attempting to reconnect in 3 seconds...');
+          wsReconnectTimeout = setTimeout(setupWebSocket, 3000);
+        }
+      };
+      
+      // When an error occurs
+      ws.onerror = function(error) {
+        logMessage('WebSocket error occurred');
+        console.error('WebSocket error:', error);
+      };
+      
+      // Handle messages from the server
+      ws.onmessage = function(event) {
+        let payload;
+        try {
+          payload = JSON.parse(event.data);
+          logMessage(`Received message type: ${Object.keys(payload).join(', ')}`);
+        } catch (e) {
+          console.error("Failed to parse JSON:", e, "Raw data:", event.data);
+          return;
+        }
+        
+        // Handle model list
+        if ("loaded_models" in payload) {
+          logMessage(`Loaded ${payload.loaded_models.length} models`);
+          
+          // Add loaded models to the table
+          const table = document.querySelector('table');
+          table.innerHTML = '<tr><th>Wake Word</th><th>Status</th></tr>';
+          
+          payload.loaded_models.forEach(model => {
+            const row = table.insertRow();
+            const cell1 = row.insertCell();
+            const cell2 = row.insertCell();
+            cell1.textContent = model;
+            cell2.textContent = '';
+          });
+        }
+        
+        // Handle recording status changes
+        if ("status" in payload) {
+          if (payload.status === "recording_started") {
+            updateStatus(`Recording after wake word: ${payload.wake_word}`, true);
+            logMessage(`Started recording after detecting: ${payload.wake_word}`);
+          } 
+          else if (payload.status === "recording_stopped") {
+            updateStatus("Recording saved", false);
+            logMessage(`Recording stopped: ${payload.trigger}`);
+          }
+        }
+        
+        // Handle wake word activations
+        if ("activations" in payload && payload.activations.length > 0) {
+          const table = document.querySelector('table');
+          const rows = table.querySelectorAll('tr');
+          
+          for (let i = 1; i < rows.length; i++) {
+            const modelCell = rows[i].querySelectorAll('td')[0];
+            const modelName = modelCell.textContent;
+            
+            // Check if this model is in the received activations
+            if (payload.activations.includes(modelName)) {
+              logMessage(`Detected: ${modelName}`);
+              
+              // Update table cell visual
+              const cell = rows[i].querySelectorAll('td')[1];
+              cell.textContent = "Detected!";
+              cell.classList.add('detected-animation');
+              
+              // Remove the CSS class after the animation ends
+              cell.addEventListener('animationend', () => {
+                cell.textContent = '';
+                cell.classList.remove('detected-animation');
+              }, { once: true });
+            }
+          }
+        }
+      };
+    } catch (error) {
+      logMessage(`Error setting up WebSocket: ${error.message}`);
+      console.error("WebSocket setup error:", error);
+    }
+  }
+  
+  // Initialize audio components
+  async function setupAudio() {
+    try {
+      // Get microphone access
+      audioStream = await navigator.mediaDevices.getUserMedia({audio: true});
+      
+      // Create audio context
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      audioContext = new AudioContext();
+      
+      // Get sample rate
+      sampleRate = audioContext.sampleRate;
+      logMessage(`Microphone initialized with sample rate: ${sampleRate}Hz`);
+      
+      // Create gain node
+      volume = audioContext.createGain();
+      
+      // Create audio source
+      const audioInput = audioContext.createMediaStreamSource(audioStream);
+      
+      // Connect source to gain
+      audioInput.connect(volume);
+      
+      // Create script processor for audio processing
+      const bufferSize = 4096;
+      recorder = audioContext.createScriptProcessor(bufferSize, 1, 1);
+      
+      // Set up audio processing function
+      recorder.onaudioprocess = function(event) {
+        // Only process and send audio if websocket is open and we're streaming
+        if (isStreaming && ws && ws.readyState === WebSocket.OPEN) {
+          try {
+            const samples = event.inputBuffer.getChannelData(0);
+            
+            // Convert float32 to int16
+            const PCM16iSamples = new Int16Array(samples.length);
+            for (let i = 0; i < samples.length; i++) {
+              // Convert float [-1.0, 1.0] to int16 [-32768, 32767]
+              PCM16iSamples[i] = Math.min(32767, Math.max(-32768, Math.round(samples[i] * 32767)));
+            }
+            
+            // Send audio data
+            ws.send(PCM16iSamples.buffer);
+          } catch (error) {
+            console.error('Error processing audio:', error);
+            // Don't log every error to UI to avoid flooding
+          }
+        }
+      };
+      
+      return true;
+    } catch (error) {
+      logMessage(`Error accessing microphone: ${error.message}`);
+      console.error('Error accessing microphone:', error);
+      return false;
+    }
+  }
+  
+  // Toggle audio streaming
+  async function toggleStreaming() {
+    if (!isStreaming) {
+      // Start streaming
+      logMessage('Starting audio streaming...');
+      
+      try {
+        // Set up WebSocket first
+        setupWebSocket();
+        
+        // Set up audio if not already set up
+        if (!audioContext) {
+          logMessage('Setting up audio context...');
+          const success = await setupAudio();
+          if (!success) {
+            logMessage('Failed to set up audio context');
+            alert('Failed to access the microphone. Please check permissions and try again.');
+            return;
+          }
+        } else if (audioContext.state === 'suspended') {
+          logMessage('Resuming suspended audio context...');
+          await audioContext.resume();
+        }
+        
+        // Make sure all components are ready
+        if (!ws) {
+          logMessage('WebSocket not initialized');
+          return;
+        }
+        
+        if (!audioContext || !volume || !recorder) {
+          logMessage('Audio components not initialized');
+          return;
+        }
+        
+        // Wait for WebSocket to be ready
+        if (ws.readyState !== WebSocket.OPEN) {
+          logMessage('Waiting for WebSocket connection...');
+          
+          // Set up a promise to wait for the connection
+          const waitForOpenConnection = new Promise((resolve, reject) => {
+            const maxWaitTime = 5000; // 5 seconds timeout
+            const interval = 100; // Check every 100ms
+            let waited = 0;
+            
+            const checkConnection = () => {
+              if (ws.readyState === WebSocket.OPEN) {
+                resolve();
+              } else if (ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) {
+                reject(new Error('WebSocket closed while waiting for connection'));
+              } else if (waited >= maxWaitTime) {
+                reject(new Error('Timed out waiting for WebSocket connection'));
+              } else {
+                waited += interval;
+                setTimeout(checkConnection, interval);
+              }
+            };
+            
+            checkConnection();
+          });
+          
+          try {
+            await waitForOpenConnection;
+            logMessage('WebSocket connection established');
+          } catch (error) {
+            logMessage(`WebSocket connection failed: ${error.message}`);
+            return;
+          }
+        }
+        
+        // Connect audio nodes and start streaming
+        logMessage('Connecting audio nodes...');
+        
+        // Connect recorder nodes
+        volume.connect(recorder);
+        recorder.connect(audioContext.destination);
+        
+        // Send sample rate
+        logMessage(`Sending sample rate: ${sampleRate}Hz`);
+        ws.send(sampleRate.toString());
+        
+        // Update UI
+        document.getElementById('startButton').textContent = 'Stop Microphone';
+        document.getElementById('startButton').classList.add('listening');
+        updateStatus('Listening for wake words...');
+        isStreaming = true;
+        logMessage('Streaming started successfully');
+      } catch (error) {
+        logMessage(`Error starting streaming: ${error.message}`);
+        console.error('Error starting streaming:', error);
+      }
+    } else {
+      // Stop streaming
+      logMessage('Stopping audio streaming...');
+      isStreaming = false;
+      
+      try {
+        if (recorder && volume) {
+          // Disconnect nodes
+          recorder.disconnect();
+          volume.disconnect();
+          logMessage('Audio nodes disconnected');
+        }
+        
+        // Close WebSocket
+        if (ws) {
+          ws.close();
+          logMessage('WebSocket connection closed');
+        }
+        
+        // Update UI
+        document.getElementById('startButton').textContent = 'Start Microphone';
+        document.getElementById('startButton').classList.remove('listening');
+        updateStatus('Not streaming');
+        logMessage('Streaming stopped successfully');
+      } catch (error) {
+        logMessage(`Error stopping streaming: ${error.message}`);
+        console.error('Error stopping streaming:', error);
+      }
+    }
+  }
+  
+  // Add event listener to the start button
+  document.getElementById('startButton').addEventListener('click', toggleStreaming);
+  
+  // Log startup
+  logMessage('Application loaded. Click "Start Microphone" to begin.');
+  </script>
+</body>
+</html> 

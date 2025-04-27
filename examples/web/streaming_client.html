@@ -21,7 +21,15 @@
       transition: background-color 0.3s;
     }
     #startButton.listening {
-      background-color: #4CAF50;
+      background-color: #F44336;
+    }
+
+    #statusIndicator {
+      margin: 10px auto;
+      padding: 5px;
+      border-radius: 4px;
+      background-color: #f0f0f0;
+      max-width: 400px;
     }
 
     table {
@@ -55,6 +63,7 @@
 <body>
   <h1>Streaming Audio to openWakeWord Using Websockets</h1>
   <button id="startButton">Start Listening</button>
+  <div id="statusIndicator">Status: Not connected</div>
 
   <table>
     <tr>
@@ -68,13 +77,17 @@
   </table>
 
   <script>
-  // Create websocket connection
-  const ws = new WebSocket('ws://localhost:9000/ws');
+  // State variables
+  let isListening = false;
+  let wsReconnectTimeout = null;
+  let ws = null;
 
-  // When the websocket connection is open
-  ws.onopen = function() {
-    console.log('WebSocket connection is open');
-  };
+  // Audio variables
+  let audioStream = null;
+  let audioContext = null;
+  let recorder = null;
+  let volume = null;
+  let sampleRate = null;
 
   // Define mapping from model names to brightness values
   const modelBrightnessMap = {
@@ -88,210 +101,335 @@
   const apiCooldown = 2000; // 2 seconds
   let lastApiCallTimestamp = {}; // Store last call time per model
 
-  // Get responses from websocket and display information
-  ws.onmessage = (event) => {
-    // console.log("Received raw data:", event.data); // Commented out for less noise
-    let model_payload;
+  // Update status indicator
+  function updateStatus(message) {
+    document.getElementById('statusIndicator').textContent = `Status: ${message}`;
+  }
+
+  // Set up WebSocket connection with improved error handling and reconnection
+  function setupWebSocket() {
+    // Clear any pending reconnection
+    if (wsReconnectTimeout) {
+      clearTimeout(wsReconnectTimeout);
+      wsReconnectTimeout = null;
+    }
+    
+    // Close existing connection if open
+    if (ws) {
+      try {
+        ws.close();
+      } catch (e) {
+        console.error("Error closing existing websocket:", e);
+      }
+    }
+    
+    console.log('Setting up WebSocket connection...');
+    updateStatus('Connecting...');
+    
+    // Create new WebSocket connection
     try {
-        model_payload = JSON.parse(event.data);
-    } catch (e) {
-        console.error("Failed to parse JSON:", e, "Raw data:", event.data);
-        return; // Stop processing if JSON is invalid
-    }
-
-    // Log the parsed payload ONLY when a specific model activation occurs (moved below)
-    // if ("activations" in model_payload && model_payload.activations.length > 0) {
-    //   console.log("Parsed activation payload:", model_payload);
-    // }
-
-
-    if ("loaded_models" in model_payload) {
-      // Add loaded models to the rows of the first column in the table, inserting rows as needed
-      const table = document.querySelector('table');
-      const rows = table.querySelectorAll('tr');
-      for (let i = 1; i < model_payload.loaded_models.length + 1; i++) {
-        if (i < rows.length) {
-          const row = rows[i];
-          const cell = row.querySelectorAll('td')[0];
-          cell.textContent = model_payload.loaded_models[i - 1];
-        } else {
-          // Insert extra rows if needed, both column 1 and 2
-          const row = table.insertRow();
-          const cell1 = row.insertCell();
-          const cell2 = row.insertCell();
-          cell1.textContent = model_payload.loaded_models[i - 1];
-          cell2.textContent = '';
+      ws = new WebSocket('ws://localhost:9000/ws');
+      
+      // When the websocket connection is open
+      ws.onopen = function() {
+        console.log('WebSocket connection established');
+        updateStatus('Connected to server');
+        
+        // Send sample rate if we're listening
+        if (isListening && sampleRate) {
+          console.log(`Sending sample rate: ${sampleRate}Hz`);
+          ws.send(sampleRate.toString());
         }
-      }
-    }
+      };
+      
+      // When the websocket connection is closed
+      ws.onclose = function(event) {
+        console.log(`WebSocket connection closed: Code ${event.code}`);
+        updateStatus('Disconnected from server');
+        
+        // Attempt to reconnect if we were listening
+        if (isListening) {
+          console.log('Attempting to reconnect in 3 seconds...');
+          updateStatus('Connection lost. Reconnecting in 3s...');
+          wsReconnectTimeout = setTimeout(setupWebSocket, 3000);
+        }
+      };
+      
+      // When an error occurs
+      ws.onerror = function(error) {
+        console.error('WebSocket error:', error);
+        updateStatus('Connection error');
+      };
+      
+      // Handle messages from the server
+      ws.onmessage = (event) => {
+        let model_payload;
+        try {
+          model_payload = JSON.parse(event.data);
+        } catch (e) {
+          console.error("Failed to parse JSON:", e, "Raw data:", event.data);
+          return; // Stop processing if JSON is invalid
+        }
 
-    if ("activations" in model_payload) {
-      const table = document.querySelector('table');
-      const rows = table.querySelectorAll('tr');
-      for (let i = 1; i < rows.length; i++) {
-        const modelCell = rows[i].querySelectorAll('td')[0];
-        const modelName = modelCell.textContent;
-
-        // Check if this specific model name is in the received activations
-        if (model_payload.activations.includes(modelName)) {
-          // Log the payload only when a relevant model is activated
-          console.log("Parsed activation payload:", model_payload);
-          console.log(`Activation detected for model: ${modelName}`); // Log specific model detection
-
-          // --- Cooldown Check --- 
-          const now = Date.now();
-          if (!lastApiCallTimestamp[modelName] || (now - lastApiCallTimestamp[modelName] > apiCooldown)) {
-              console.log(`Cooldown passed for ${modelName}, proceeding with actions.`);
-              lastApiCallTimestamp[modelName] = now; // Update timestamp *before* potential async operations
-
-              // Update table cell visual
-              const cell = rows[i].querySelectorAll('td')[1];
-              cell.textContent = "Detected!";
-              cell.classList.add('detected-animation');
-
-              // Remove the CSS class after the fade out animation ends to reset the state
-              cell.addEventListener('animationend', () => {
-                  cell.textContent = '';
-                  cell.classList.remove('detected-animation');
-              }, { once: true });
-
-              // *** Call MagicMirror API based on model name (inside cooldown block) ***
-              if (modelName in modelBrightnessMap) {
-                  const brightnessValue = modelBrightnessMap[modelName];
-                  const apiUrl = `http://localhost:8080/api/brightness/${brightnessValue}`;
-                  console.log(`Calling API: ${apiUrl}`); // Log the API call being made
-
-                  fetch(apiUrl)
-                    .then(response => {
-                      console.log(`API Response Status: ${response.status} ${response.statusText}`);
-                      if (!response.ok) {
-                        // Log error if response status is not OK (e.g., 4xx, 5xx)
-                        console.error(`MagicMirror API call failed for ${modelName}. Status: ${response.status}`);
-                        // Optionally, try to read the response body for more details
-                        response.text().then(text => {
-                           console.error("API Error Body:", text);
-                        }).catch(err => {
-                           console.error("Could not read error response body:", err);
-                        });
-                      } else {
-                        console.log(`MagicMirror API call successful for ${modelName}.`);
-                        // Optionally log success body if needed
-                        // response.text().then(text => console.log("API Success Body:", text));
-                      }
-                    })
-                    .catch(error => {
-                      // Log network errors or other issues with the fetch itself
-                      console.error(`Error calling MagicMirror API for ${modelName}:`, error);
-                      // Note: Standard Fetch API errors don't typically have an 'innerException' property.
-                      // 'error.message', 'error.name', and 'error.stack' (in some envs) are common.
-                      if (error.cause) {
-                          console.error("Error Cause:", error.cause); // Log cause if available
-                      }
-                    });
-              } else {
-                console.log(`No brightness mapping found for detected model: ${modelName}`);
-              }
-              // *** END API CALL CODE ***
-          } else {
-               console.log(`Cooldown active for ${modelName}. Skipping actions.`);
+        if ("loaded_models" in model_payload) {
+          // Add loaded models to the rows of the first column in the table, inserting rows as needed
+          const table = document.querySelector('table');
+          const rows = table.querySelectorAll('tr');
+          for (let i = 1; i < model_payload.loaded_models.length + 1; i++) {
+            if (i < rows.length) {
+              const row = rows[i];
+              const cell = row.querySelectorAll('td')[0];
+              cell.textContent = model_payload.loaded_models[i - 1];
+            } else {
+              // Insert extra rows if needed, both column 1 and 2
+              const row = table.insertRow();
+              const cell1 = row.insertCell();
+              const cell2 = row.insertCell();
+              cell1.textContent = model_payload.loaded_models[i - 1];
+              cell2.textContent = '';
+            }
           }
-          // --- End Cooldown Check ---
+          console.log(`Loaded ${model_payload.loaded_models.length} models`);
+          updateStatus('Connected - Models loaded');
         }
-      }
+
+        if ("activations" in model_payload) {
+          const table = document.querySelector('table');
+          const rows = table.querySelectorAll('tr');
+          for (let i = 1; i < rows.length; i++) {
+            const modelCell = rows[i].querySelectorAll('td')[0];
+            const modelName = modelCell.textContent;
+
+            // Check if this specific model name is in the received activations
+            if (model_payload.activations.includes(modelName)) {
+              // Log the payload only when a relevant model is activated
+              console.log("Parsed activation payload:", model_payload);
+              console.log(`Activation detected for model: ${modelName}`); // Log specific model detection
+
+              // --- Cooldown Check --- 
+              const now = Date.now();
+              if (!lastApiCallTimestamp[modelName] || (now - lastApiCallTimestamp[modelName] > apiCooldown)) {
+                console.log(`Cooldown passed for ${modelName}, proceeding with actions.`);
+                lastApiCallTimestamp[modelName] = now; // Update timestamp *before* potential async operations
+
+                // Update table cell visual
+                const cell = rows[i].querySelectorAll('td')[1];
+                cell.textContent = "Detected!";
+                cell.classList.add('detected-animation');
+
+                // Remove the CSS class after the fade out animation ends to reset the state
+                cell.addEventListener('animationend', () => {
+                    cell.textContent = '';
+                    cell.classList.remove('detected-animation');
+                }, { once: true });
+
+                // *** Call MagicMirror API based on model name (inside cooldown block) ***
+                if (modelName in modelBrightnessMap) {
+                    const brightnessValue = modelBrightnessMap[modelName];
+                    const apiUrl = `http://localhost:8080/api/brightness/${brightnessValue}`;
+                    console.log(`Calling API: ${apiUrl}`); // Log the API call being made
+
+                    fetch(apiUrl)
+                      .then(response => {
+                        console.log(`API Response Status: ${response.status} ${response.statusText}`);
+                        if (!response.ok) {
+                          // Log error if response status is not OK (e.g., 4xx, 5xx)
+                          console.error(`MagicMirror API call failed for ${modelName}. Status: ${response.status}`);
+                          // Optionally, try to read the response body for more details
+                          response.text().then(text => {
+                             console.error("API Error Body:", text);
+                          }).catch(err => {
+                             console.error("Could not read error response body:", err);
+                          });
+                        } else {
+                          console.log(`MagicMirror API call successful for ${modelName}.`);
+                        }
+                      })
+                      .catch(error => {
+                        // Log network errors or other issues with the fetch itself
+                        console.error(`Error calling MagicMirror API for ${modelName}:`, error);
+                        if (error.cause) {
+                            console.error("Error Cause:", error.cause); // Log cause if available
+                        }
+                      });
+                } else {
+                  console.log(`No brightness mapping found for detected model: ${modelName}`);
+                }
+                // *** END API CALL CODE ***
+              } else {
+                 console.log(`Cooldown active for ${modelName}. Skipping actions.`);
+              }
+              // --- End Cooldown Check ---
+            }
+          }
+        }
+      };
+    } catch (error) {
+      console.error("Error setting up WebSocket:", error);
+      updateStatus('Failed to connect');
     }
-  };
+  }
 
-  // Create microphone capture stream for 16-bit PCM audio data
-  // Code based on the excellent tutorial by Ragy Morkas: https://medium.com/@ragymorkos/gettineg-monochannel-16-bit-signed-integer-pcm-audio-samples-from-the-microphone-in-the-browser-8d4abf81164d
-  navigator.getUserMedia = navigator.getUserMedia ||
-                         navigator.webkitGetUserMedia ||
-                         navigator.mozGetUserMedia ||
-                         navigator.msGetUserMedia;
-
-  let audioStream;
-  let audioContext;
-  let recorder;
-  let volume;
-  let sampleRate;
-
-  if (navigator.getUserMedia) {
-    navigator.getUserMedia({audio: true}, function(stream) {
-      audioStream = stream;
-
-      // creates the an instance of audioContext
+  // Initialize audio context and capture
+  async function initializeAudio() {
+    try {
+      if (audioContext) {
+        return true; // Already initialized
+      }
+      
+      // Get microphone access
+      audioStream = await navigator.mediaDevices.getUserMedia({audio: true});
+      
+      // Create audio context
       const context = window.AudioContext || window.webkitAudioContext;
       audioContext = new context();
-
-      // retrieve the current sample rate of microphone the browser is using and send to Python server
+      
+      // Get sample rate
       sampleRate = audioContext.sampleRate;
-
-      // creates a gain node
+      console.log(`Microphone initialized with sample rate: ${sampleRate}Hz`);
+      
+      // Create gain node
       volume = audioContext.createGain();
-
-      // creates an audio node from the microphone incoming stream
+      
+      // Create audio source
       const audioInput = audioContext.createMediaStreamSource(audioStream);
-
-      // connect the stream to the gain node
+      
+      // Connect source to gain
       audioInput.connect(volume);
-
+      
+      // Create script processor
       const bufferSize = 4096;
       recorder = (audioContext.createScriptProcessor ||
                   audioContext.createJavaScriptNode).call(audioContext,
-                                                          bufferSize,
-                                                          1,
-                                                          1);
-
+                                                         bufferSize,
+                                                         1,
+                                                         1);
+      
+      // Set up audio processing
       recorder.onaudioprocess = function(event) {
-        const samples = event.inputBuffer.getChannelData(0);
-        const PCM16iSamples = samples.map(sample => {
-          let val = Math.floor(32767 * sample);
-          return Math.min(32767, Math.max(-32768, val));
-        });
-
-        // Push audio to websocket
-        const int16Array = new Int16Array(PCM16iSamples);
-        const blob = new Blob([int16Array], { type: 'application/octet-stream' });
-        // Ensure websocket is open before sending
-        if (ws.readyState === WebSocket.OPEN) {
-             ws.send(blob);
-        } else {
-             console.warn("WebSocket not open. Cannot send audio data.");
+        // Only process if we're listening and websocket is open
+        if (isListening && ws && ws.readyState === WebSocket.OPEN) {
+          try {
+            const samples = event.inputBuffer.getChannelData(0);
+            
+            // Convert float32 to int16
+            const PCM16iSamples = new Int16Array(samples.length);
+            for (let i = 0; i < samples.length; i++) {
+              PCM16iSamples[i] = Math.min(32767, Math.max(-32768, Math.round(samples[i] * 32767)));
+            }
+            
+            // Send audio data
+            const blob = new Blob([PCM16iSamples], { type: 'application/octet-stream' });
+            ws.send(blob);
+          } catch (error) {
+            console.error('Error processing audio:', error);
+          }
         }
       };
-
-    }, function(error) {
-      console.error('Error capturing audio.', error); // Log error object
-      alert('Error capturing audio. Check console for details.');
-    });
-  } else {
-    alert('getUserMedia not supported in this browser.');
+      
+      return true;
+    } catch (error) {
+      console.error('Error initializing audio:', error);
+      alert('Error accessing microphone. Please check permissions and try again.');
+      return false;
+    }
   }
 
-  // start recording
-  const startButton = document.getElementById('startButton');
-  startButton.addEventListener('click', function() {
-    if (!startButton.classList.contains('listening')) {
+  // Start audio streaming
+  async function startAudio() {
+    try {
+      // Initialize audio if needed
+      if (!await initializeAudio()) {
+        return false;
+      }
+      
+      // Resume audio context if suspended
       if (audioContext && audioContext.state === 'suspended') {
-          audioContext.resume(); // Resume audio context if suspended (e.g., by browser policy)
+        await audioContext.resume();
       }
-      if (volume && recorder && audioContext) {
-           volume.connect(recorder);
-           recorder.connect(audioContext.destination);
-           if (ws.readyState === WebSocket.OPEN) {
-                ws.send(sampleRate); // Send sample rate only when starting
-                startButton.classList.add('listening');
-                startButton.textContent = 'Listening...';
-           } else {
-                console.error("WebSocket not open. Cannot start listening.");
-                alert("WebSocket connection is not open. Please ensure the server is running and refresh the page.");
-           }
-      } else {
-          console.error("Audio components not initialized properly.");
-          alert("Audio components not ready. Please allow microphone access and refresh.");
+      
+      // Connect nodes
+      if (volume && recorder) {
+        volume.connect(recorder);
+        recorder.connect(audioContext.destination);
       }
+      
+      // Send sample rate if WebSocket is connected
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(sampleRate.toString());
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('Error starting audio:', error);
+      return false;
     }
-    // Note: Added no 'stop' functionality here, assuming continuous listening once started.
-  });
+  }
+
+  // Stop audio streaming
+  function stopAudio() {
+    try {
+      if (recorder && volume) {
+        // Disconnect nodes
+        recorder.disconnect();
+        volume.disconnect();
+        console.log('Audio nodes disconnected');
+      }
+      return true;
+    } catch (error) {
+      console.error('Error stopping audio:', error);
+      return false;
+    }
+  }
+
+  // Toggle audio streaming
+  async function toggleStreaming() {
+    const startButton = document.getElementById('startButton');
+    
+    if (!isListening) {
+      // Start listening
+      console.log('Starting audio streaming...');
+      
+      // Set up WebSocket first
+      setupWebSocket();
+      
+      // Start audio streaming
+      if (await startAudio()) {
+        // Update state and UI
+        isListening = true;
+        startButton.classList.add('listening');
+        startButton.textContent = 'Stop Listening';
+        updateStatus('Listening for wake words');
+        console.log('Audio streaming started');
+      } else {
+        updateStatus('Failed to start audio');
+      }
+    } else {
+      // Stop listening
+      console.log('Stopping audio streaming...');
+      
+      // Stop audio
+      stopAudio();
+      
+      // Close WebSocket
+      if (ws) {
+        ws.close();
+      }
+      
+      // Update state and UI
+      isListening = false;
+      startButton.classList.remove('listening');
+      startButton.textContent = 'Start Listening';
+      updateStatus('Stopped');
+      console.log('Audio streaming stopped');
+    }
+  }
+
+  // Connect to WebSocket on page load
+  setupWebSocket();
+
+  // Add event listener to the start button
+  document.getElementById('startButton').addEventListener('click', toggleStreaming);
   </script>
 </body>
 </html>

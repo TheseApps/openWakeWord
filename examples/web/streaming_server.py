@@ -115,7 +115,6 @@ if __name__ == '__main__':
         "models/hey_mycroft_v0.1.onnx",
         "models/hey_jarvis_v0.1.onnx",
         "models/hey_rhasspy_v0.1.onnx",
-        "models/timer_v0.1.onnx",
         "models/weather_v0.1.onnx"
     ]
 
