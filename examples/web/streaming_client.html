@@ -23,6 +23,26 @@
     #startButton.listening {
       background-color: #4CAF50;
     }
+/* Styles for the popup */
+#popup {
+      position: fixed; /* Fixed position */
+      left: 50%; /* Center horizontally */
+      top: 20px; /* Position from the top */
+      transform: translateX(-50%); /* Adjust horizontal centering */
+      background-color: #4CAF50; /* Green background */
+      color: white; /* White text */
+      padding: 15px 30px; /* Padding */
+      border-radius: 5px; /* Rounded corners */
+      z-index: 1000; /* Ensure it's on top */
+      font-size: 18px;
+      opacity: 1;
+      transition: opacity 0.5s ease-out; /* Fade out transition */
+    }
+
+    #popup.hide {
+      opacity: 0;
+    }
+
     table {
       margin: 20px auto;
       border-collapse: collapse;
@@ -106,11 +126,38 @@
       const rows = table.querySelectorAll('tr');
       for (let i = 1; i < rows.length; i++) {
         // Check for the model name in the first column and add "Detected!" to the second column if they match
-        if (model_payload.activations.includes(rows[i].querySelectorAll('td')[0].textContent)) {
+        const modelCell = rows[i].querySelectorAll('td')[0]; // Get the cell
+        const modelName = modelCell.textContent; // Get the text content
+        if (model_payload.activations.includes(modelName)) { // Use modelName here
           const cell = rows[i].querySelectorAll('td')[1];
           cell.textContent = "Detected!";
           cell.classList.add('detected-animation'); // animate fade out
       
+          // *** ADDED: Show temporary popup ***
+          // Remove existing popup if any
+          const existingPopup = document.getElementById('popup');
+          if (existingPopup) {
+            existingPopup.remove();
+          }
+
+          // Create new popup element
+          const popup = document.createElement('div');
+          popup.id = 'popup';
+          popup.textContent = `Detected: ${modelName}`;
+          document.body.appendChild(popup);
+
+          // Set timeout to hide and remove the popup after 3 seconds
+          setTimeout(() => {
+            popup.classList.add('hide'); // Start fade out
+            // Remove the element after the transition completes
+            popup.addEventListener('transitionend', () => {
+               if (popup.parentNode) { // Check if it hasn't been removed already
+                 popup.remove();
+               }
+            });
+          }, 3000); // 3000 milliseconds = 3 seconds
+          // *** END ADDED CODE ***
+
           // Remove the CSS class after the fade out animation ends to reset the state
           cell.addEventListener('animationend', () => {
             cell.textContent = '';
