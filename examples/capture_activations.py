@@ -68,7 +68,6 @@ parser.add_argument(
     default=False,
     required=False
 )
-parser=argparse.ArgumentParser()
 parser.add_argument(
     "--chunk_size",
     help="How much audio (in number of 16khz samples) to predict on at once",
@@ -87,7 +86,7 @@ parser.add_argument(
     "--inference_framework",
     help="The inference framework to use (either 'onnx' or 'tflite'",
     type=str,
-    default='tflite',
+    default='onnx',
     required=False
 )
 parser.add_argument(

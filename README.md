@@ -2,6 +2,24 @@
 
 # openWakeWord
 
+
+## Step 1: 
+run this command from the root of your openWakeWord workspace directory
+```powershell
+.\.venv\Scripts\Activate.ps1
+```
+
+## Step 2: 
+To start the streaming server, run the following command from the root of your openWakeWord workspace (after activating your virtual environment):
+```python
+python examples/web/streaming_server.py
+```
+
+## Step 3:
+Then you can open the examples/web/streaming_client.html file in your browser to interact with it.
+http://localhost:9000
+
+
 openWakeWord is an open-source wakeword library that can be used to create voice-enabled applications and interfaces. It includes pre-trained models for common words & phrases that work well in real-world environments.
 
 **Quick Links**

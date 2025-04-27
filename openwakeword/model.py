@@ -209,8 +209,25 @@ class Model():
         if vad_threshold > 0:
             self.vad = openwakeword.VAD()
 
-        # Create AudioFeatures object
-        self.preprocessor = AudioFeatures(inference_framework=inference_framework, **kwargs)
+        # Create AudioFeatures object, explicitly providing paths to pre-processing models
+        # stored locally in the project's root ./models directory.
+        script_dir = os.path.dirname(os.path.abspath(__file__)) # Get dir where model.py is
+        base_dir = os.path.dirname(script_dir) # Assumes models dir is one level above openwakeword package dir
+        local_melspec_path = os.path.join(base_dir, "models", "melspectrogram.onnx")
+        local_embedding_path = os.path.join(base_dir, "models", "embedding_model.onnx")
+
+        # Check if paths exist, fall back to simple relative path if needed (for running from root)
+        if not os.path.exists(local_melspec_path):
+            local_melspec_path = os.path.join("models", "melspectrogram.onnx")
+        if not os.path.exists(local_embedding_path):
+            local_embedding_path = os.path.join("models", "embedding_model.onnx")
+
+        self.preprocessor = AudioFeatures(
+            melspec_model_path=local_melspec_path,
+            embedding_model_path=local_embedding_path,
+            inference_framework=inference_framework,
+            **kwargs
+        )
 
     def get_parent_model_from_label(self, label):
         """Gets the parent model associated with a given prediction label"""
