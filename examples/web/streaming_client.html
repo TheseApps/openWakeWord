@@ -23,25 +23,6 @@
     #startButton.listening {
       background-color: #4CAF50;
     }
-/* Styles for the popup */
-#popup {
-      position: fixed; /* Fixed position */
-      left: 50%; /* Center horizontally */
-      top: 20px; /* Position from the top */
-      transform: translateX(-50%); /* Adjust horizontal centering */
-      background-color: #4CAF50; /* Green background */
-      color: white; /* White text */
-      padding: 15px 30px; /* Padding */
-      border-radius: 5px; /* Rounded corners */
-      z-index: 1000; /* Ensure it's on top */
-      font-size: 18px;
-      opacity: 1;
-      transition: opacity 0.5s ease-out; /* Fade out transition */
-    }
-
-    #popup.hide {
-      opacity: 0;
-    }
 
     table {
       margin: 20px auto;
@@ -95,10 +76,35 @@
     console.log('WebSocket connection is open');
   };
 
+  // Define mapping from model names to brightness values
+  const modelBrightnessMap = {
+    'hey_mycroft_v0.1': 20,
+    'hey_jarvis_v0.1': 200,
+    'alexa_v0.1': 'cookie monster' // Intentionally incorrect value for testing
+    // Add other models here if needed
+  };
+
+  // Cooldown tracking for API calls (milliseconds)
+  const apiCooldown = 2000; // 2 seconds
+  let lastApiCallTimestamp = {}; // Store last call time per model
+
   // Get responses from websocket and display information
   ws.onmessage = (event) => {
-    console.log(event.data);
-    const model_payload = JSON.parse(event.data);
+    // console.log("Received raw data:", event.data); // Commented out for less noise
+    let model_payload;
+    try {
+        model_payload = JSON.parse(event.data);
+    } catch (e) {
+        console.error("Failed to parse JSON:", e, "Raw data:", event.data);
+        return; // Stop processing if JSON is invalid
+    }
+
+    // Log the parsed payload ONLY when a specific model activation occurs (moved below)
+    // if ("activations" in model_payload && model_payload.activations.length > 0) {
+    //   console.log("Parsed activation payload:", model_payload);
+    // }
+
+
     if ("loaded_models" in model_payload) {
       // Add loaded models to the rows of the first column in the table, inserting rows as needed
       const table = document.querySelector('table');
@@ -117,52 +123,79 @@
           cell2.textContent = '';
         }
       }
-
     }
 
     if ("activations" in model_payload) {
-      // Add detected wakeword to the rows of the second column in the table
       const table = document.querySelector('table');
       const rows = table.querySelectorAll('tr');
       for (let i = 1; i < rows.length; i++) {
-        // Check for the model name in the first column and add "Detected!" to the second column if they match
-        const modelCell = rows[i].querySelectorAll('td')[0]; // Get the cell
-        const modelName = modelCell.textContent; // Get the text content
-        if (model_payload.activations.includes(modelName)) { // Use modelName here
-          const cell = rows[i].querySelectorAll('td')[1];
-          cell.textContent = "Detected!";
-          cell.classList.add('detected-animation'); // animate fade out
-      
-          // *** ADDED: Show temporary popup ***
-          // Remove existing popup if any
-          const existingPopup = document.getElementById('popup');
-          if (existingPopup) {
-            existingPopup.remove();
+        const modelCell = rows[i].querySelectorAll('td')[0];
+        const modelName = modelCell.textContent;
+
+        // Check if this specific model name is in the received activations
+        if (model_payload.activations.includes(modelName)) {
+          // Log the payload only when a relevant model is activated
+          console.log("Parsed activation payload:", model_payload);
+          console.log(`Activation detected for model: ${modelName}`); // Log specific model detection
+
+          // --- Cooldown Check --- 
+          const now = Date.now();
+          if (!lastApiCallTimestamp[modelName] || (now - lastApiCallTimestamp[modelName] > apiCooldown)) {
+              console.log(`Cooldown passed for ${modelName}, proceeding with actions.`);
+              lastApiCallTimestamp[modelName] = now; // Update timestamp *before* potential async operations
+
+              // Update table cell visual
+              const cell = rows[i].querySelectorAll('td')[1];
+              cell.textContent = "Detected!";
+              cell.classList.add('detected-animation');
+
+              // Remove the CSS class after the fade out animation ends to reset the state
+              cell.addEventListener('animationend', () => {
+                  cell.textContent = '';
+                  cell.classList.remove('detected-animation');
+              }, { once: true });
+
+              // *** Call MagicMirror API based on model name (inside cooldown block) ***
+              if (modelName in modelBrightnessMap) {
+                  const brightnessValue = modelBrightnessMap[modelName];
+                  const apiUrl = `http://localhost:8080/api/brightness/${brightnessValue}`;
+                  console.log(`Calling API: ${apiUrl}`); // Log the API call being made
+
+                  fetch(apiUrl)
+                    .then(response => {
+                      console.log(`API Response Status: ${response.status} ${response.statusText}`);
+                      if (!response.ok) {
+                        // Log error if response status is not OK (e.g., 4xx, 5xx)
+                        console.error(`MagicMirror API call failed for ${modelName}. Status: ${response.status}`);
+                        // Optionally, try to read the response body for more details
+                        response.text().then(text => {
+                           console.error("API Error Body:", text);
+                        }).catch(err => {
+                           console.error("Could not read error response body:", err);
+                        });
+                      } else {
+                        console.log(`MagicMirror API call successful for ${modelName}.`);
+                        // Optionally log success body if needed
+                        // response.text().then(text => console.log("API Success Body:", text));
+                      }
+                    })
+                    .catch(error => {
+                      // Log network errors or other issues with the fetch itself
+                      console.error(`Error calling MagicMirror API for ${modelName}:`, error);
+                      // Note: Standard Fetch API errors don't typically have an 'innerException' property.
+                      // 'error.message', 'error.name', and 'error.stack' (in some envs) are common.
+                      if (error.cause) {
+                          console.error("Error Cause:", error.cause); // Log cause if available
+                      }
+                    });
+              } else {
+                console.log(`No brightness mapping found for detected model: ${modelName}`);
+              }
+              // *** END API CALL CODE ***
+          } else {
+               console.log(`Cooldown active for ${modelName}. Skipping actions.`);
           }
-
-          // Create new popup element
-          const popup = document.createElement('div');
-          popup.id = 'popup';
-          popup.textContent = `Detected: ${modelName}`;
-          document.body.appendChild(popup);
-
-          // Set timeout to hide and remove the popup after 3 seconds
-          setTimeout(() => {
-            popup.classList.add('hide'); // Start fade out
-            // Remove the element after the transition completes
-            popup.addEventListener('transitionend', () => {
-               if (popup.parentNode) { // Check if it hasn't been removed already
-                 popup.remove();
-               }
-            });
-          }, 3000); // 3000 milliseconds = 3 seconds
-          // *** END ADDED CODE ***
-
-          // Remove the CSS class after the fade out animation ends to reset the state
-          cell.addEventListener('animationend', () => {
-            cell.textContent = '';
-            cell.classList.remove('detected-animation');
-          }, { once: true });
+          // --- End Cooldown Check ---
         }
       }
     }
@@ -170,11 +203,11 @@
 
   // Create microphone capture stream for 16-bit PCM audio data
   // Code based on the excellent tutorial by Ragy Morkas: https://medium.com/@ragymorkos/gettineg-monochannel-16-bit-signed-integer-pcm-audio-samples-from-the-microphone-in-the-browser-8d4abf81164d
-  navigator.getUserMedia = navigator.getUserMedia || 
-                         navigator.webkitGetUserMedia || 
-                         navigator.mozGetUserMedia || 
+  navigator.getUserMedia = navigator.getUserMedia ||
+                         navigator.webkitGetUserMedia ||
+                         navigator.mozGetUserMedia ||
                          navigator.msGetUserMedia;
- 
+
   let audioStream;
   let audioContext;
   let recorder;
@@ -188,24 +221,24 @@
       // creates the an instance of audioContext
       const context = window.AudioContext || window.webkitAudioContext;
       audioContext = new context();
-      
+
       // retrieve the current sample rate of microphone the browser is using and send to Python server
       sampleRate = audioContext.sampleRate;
-      
+
       // creates a gain node
       volume = audioContext.createGain();
-      
+
       // creates an audio node from the microphone incoming stream
       const audioInput = audioContext.createMediaStreamSource(audioStream);
-      
+
       // connect the stream to the gain node
       audioInput.connect(volume);
-      
+
       const bufferSize = 4096;
-      recorder = (audioContext.createScriptProcessor || 
-                  audioContext.createJavaScriptNode).call(audioContext, 
-                                                          bufferSize, 
-                                                          1, 
+      recorder = (audioContext.createScriptProcessor ||
+                  audioContext.createJavaScriptNode).call(audioContext,
+                                                          bufferSize,
+                                                          1,
                                                           1);
 
       recorder.onaudioprocess = function(event) {
@@ -218,11 +251,17 @@
         // Push audio to websocket
         const int16Array = new Int16Array(PCM16iSamples);
         const blob = new Blob([int16Array], { type: 'application/octet-stream' });
-        ws.send(blob);
+        // Ensure websocket is open before sending
+        if (ws.readyState === WebSocket.OPEN) {
+             ws.send(blob);
+        } else {
+             console.warn("WebSocket not open. Cannot send audio data.");
+        }
       };
 
     }, function(error) {
-      alert('Error capturing audio.');
+      console.error('Error capturing audio.', error); // Log error object
+      alert('Error capturing audio. Check console for details.');
     });
   } else {
     alert('getUserMedia not supported in this browser.');
@@ -232,12 +271,26 @@
   const startButton = document.getElementById('startButton');
   startButton.addEventListener('click', function() {
     if (!startButton.classList.contains('listening')) {
-      volume.connect(recorder);
-      recorder.connect(audioContext.destination);
-      ws.send(sampleRate);
-      startButton.classList.add('listening');
-      startButton.textContent = 'Listening...';
+      if (audioContext && audioContext.state === 'suspended') {
+          audioContext.resume(); // Resume audio context if suspended (e.g., by browser policy)
+      }
+      if (volume && recorder && audioContext) {
+           volume.connect(recorder);
+           recorder.connect(audioContext.destination);
+           if (ws.readyState === WebSocket.OPEN) {
+                ws.send(sampleRate); // Send sample rate only when starting
+                startButton.classList.add('listening');
+                startButton.textContent = 'Listening...';
+           } else {
+                console.error("WebSocket not open. Cannot start listening.");
+                alert("WebSocket connection is not open. Please ensure the server is running and refresh the page.");
+           }
+      } else {
+          console.error("Audio components not initialized properly.");
+          alert("Audio components not ready. Please allow microphone access and refresh.");
+      }
     }
+    // Note: Added no 'stop' functionality here, assuming continuous listening once started.
   });
   </script>
 </body>
