@@ -25,6 +25,13 @@ ModuleNotFoundError: No module named 'resampy': ```pip install resampy```
 ModuleNotFoundError: No module named 'websockets': ```pip install websockets```
 
 
+For UI w eye contact stubbed
+python examples/web/streaming_server.py
+
+For server-only faster, better names too:
+python examples/capture_activations.py
+
+
 
 ## Using a share on R-Pi
 ## Step 1: Create the share (in an elevated Command Prompt)
