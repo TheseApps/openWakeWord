@@ -166,9 +166,9 @@ if __name__ == "__main__":
                 
                 print(f'Detected activation from \"{mdl}\" model at time {detect_time}!')
 
-                # Capture total of 5 seconds, with the microphone audio associated with the
+                # Capture total of 10 seconds, with the microphone audio associated with the
                 # activation around the ~4 second point
-                audio_context = np.array(list(owwModel.preprocessor.raw_data_buffer)[-16000*5:]).astype(np.int16)
+                audio_context = np.array(list(owwModel.preprocessor.raw_data_buffer)[-16000*10:]).astype(np.int16)
                 fname = detect_time + f"_{mdl}.wav"
                 scipy.io.wavfile.write(os.path.join(os.path.abspath(args.output_dir), fname), 16000, audio_context)
                 
