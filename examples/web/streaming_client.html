@@ -3,497 +3,829 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Websocket Microphone Streaming</title>
+  <title>OpenWakeWord Eye Contact</title>
   <style>
     body {
-      text-align: center;
-      font-family: 'Roboto', sans-serif;
+      font-family: 'Arial', sans-serif;
+      margin: 0;
+      padding: 20px;
+      background-color: #f9f9f9;
+      color: #333;
     }
-    #startButton {
-      padding: 15px 30px;
-      font-size: 18px;
-      background-color: #03A9F4;
+    #appContainer {
+      max-width: 500px;
+      margin: 0 auto;
+    }
+    #eyesContainer {
+      width: 300px; /* 3 inches at 100 dpi */
+      height: 200px; /* 2 inches at 100 dpi */
+      margin: 0 auto 20px;
+      background-color: #fff;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      position: relative;
+      overflow: hidden;
+    }
+    .eye {
+      position: absolute;
+      width: 80px;
+      height: 80px;
+      background-color: white;
+      border-radius: 50%;
+      border: 2px solid #333;
+      top: 50%;
+      transform: translateY(-50%);
+    }
+    .eye.left {
+      left: 60px;
+    }
+    .eye.right {
+      right: 60px;
+    }
+    .pupil {
+      position: absolute;
+      width: 35px;
+      height: 35px;
+      background-color: #333;
+      border-radius: 50%;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      transition: all 0.3s ease;
+    }
+    .eyelid {
+      position: absolute;
+      width: 80px;
+      height: 40px;
+      background-color: #f9f9f9;
+      border-bottom: 2px solid #333;
+      top: 0;
+      left: 0;
+      transform-origin: top;
+      transform: scaleY(0);
+      transition: transform 0.2s ease;
+    }
+    .wink .eyelid {
+      transform: scaleY(1);
+    }
+    #controls {
+      display: flex;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    #goLiveBtn {
+      padding: 10px 20px;
+      font-size: 16px;
+      background-color: #4CAF50;
+      color: white;
       border: none;
       border-radius: 4px;
-      color: white;
       cursor: pointer;
-      outline: none;
+      margin-right: 20px;
       transition: background-color 0.3s;
     }
-    #startButton.listening {
+    #goLiveBtn.listening {
       background-color: #F44336;
     }
-
-    #statusIndicator {
-      margin: 10px auto;
-      padding: 5px;
-      border-radius: 4px;
-      background-color: #f0f0f0;
-      max-width: 400px;
+    #soundBar {
+      flex-grow: 1;
+      height: 30px;
+      background-color: #e0e0e0;
+      border-radius: 15px;
+      overflow: hidden;
+      position: relative;
     }
-
-    #recordingStatus {
-      margin: 10px auto;
-      padding: 10px;
-      border-radius: 4px;
-      max-width: 400px;
-      background-color: #f0f0f0;
-      display: none;
+    #soundBarFill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(to right, #4CAF50, #FFC107, #F44336);
+      transition: width 0.1s ease;
+      border-radius: 15px;
     }
-
-    #recordingStatus.active {
-      display: block;
-      background-color: #FF5722;
+    #wakeWordOverlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
       color: white;
-      animation: pulse 2s infinite;
+      text-shadow: 1px 1px 2px rgba(0,0,0,0.7);
+      opacity: 0;
+      transition: opacity 0.3s;
     }
-
+    #statusText {
+      margin-top: 10px;
+      color: #666;
+    }
+    #recordingsContainer {
+      max-height: 300px;
+      overflow-y: auto;
+      background-color: white;
+      border-radius: 8px;
+      padding: 10px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    .recordingItem {
+      padding: 8px;
+      border-bottom: 1px solid #eee;
+      font-size: 14px;
+    }
+    .recordingItem:last-child {
+      border-bottom: none;
+    }
+    /* New styles for recording indicator */
+    #recordingIndicator {
+      display: none;
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      width: 200px;
+      padding: 15px;
+      background-color: #F44336;
+      color: white;
+      font-weight: bold;
+      border-radius: 8px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+      text-align: center;
+      z-index: 1000;
+      animation: pulse 1.5s infinite;
+    }
+    #recordingIndicator.active {
+      display: block;
+    }
     @keyframes pulse {
-      0% { opacity: 0.8; }
-      50% { opacity: 1; }
-      100% { opacity: 0.8; }
+      0% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+      100% { transform: scale(1); }
     }
-
-    table {
-      margin: 20px auto;
-      border-collapse: collapse;
-      width: 60%;
-    }
-    th, td {
-      border: 1px solid #E0E0E0;
-      padding: 10px;
-      text-align: left;
-    }
-    th {
-      background-color: #F5F5F5;
-    }
-
-    #recordings {
-      margin: 20px auto;
-      max-width: 80%;
-      text-align: left;
-    }
-
-    .recording-item {
-      margin: 10px 0;
-      padding: 10px;
-      background-color: #f5f5f5;
+    .cooldownModel {
+      margin-right: 5px;
+      padding: 3px 6px;
+      background-color: #e0e0e0;
       border-radius: 4px;
+      font-size: 12px;
+      display: inline-block;
+      margin-bottom: 5px;
+      opacity: 0.5;
     }
-
-    @keyframes fadeOut {
-      from {
-        opacity: 1;
-      }
-      to {
-        opacity: 0;
-      }
+    .cooldownModel.active {
+      background-color: #4CAF50;
+      color: white;
+      opacity: 1;
     }
-
-    .detected-animation {
-      animation: fadeOut 2s forwards;
+    #cooldownModels {
+      margin-top: 5px;
+      margin-bottom: 10px;
     }
   </style>
 </head>
 <body>
-  <h1>Streaming Audio to openWakeWord Using Websockets</h1>
-  <button id="startButton">Start Listening</button>
-  <div id="statusIndicator">Status: Not connected</div>
-  <div id="recordingStatus">Recording after wake word detection...</div>
+  <div id="appContainer">
+    <h1>OpenWakeWord Eye Contact</h1>
+    
+    <div id="eyesContainer">
+      <div class="eye left">
+        <div class="pupil"></div>
+        <div class="eyelid"></div>
+      </div>
+      <div class="eye right">
+        <div class="pupil"></div>
+        <div class="eyelid"></div>
+      </div>
+    </div>
+    
+    <div id="controls">
+      <button id="goLiveBtn">Go Live</button>
+      <div id="soundBar">
+        <div id="soundBarFill"></div>
+        <div id="wakeWordOverlay"></div>
+      </div>
+    </div>
+    
+    <div id="statusText">Status: Not connected</div>
+    <div id="cooldownModels"></div>
+    
+    <h2>Recording Log</h2>
+    <div id="recordingsContainer"></div>
+  </div>
 
-  <table>
-    <tr>
-      <th>Wakeword</th>
-      <th>Detected</th>
-    </tr>
-    <tr>
-      <td></td>
-      <td></td>
-    </tr>
-  </table>
-
-  <div id="recordings">
-    <h2>Saved Recordings</h2>
-    <div id="recordingsList"></div>
+  <!-- New recording indicator -->
+  <div id="recordingIndicator">
+    RECORDING
+    <div id="recordingDetails">Wake word: </div>
+    <div id="recordingFilename"></div>
   </div>
 
   <script>
-  // State variables
-  let isListening = false;
-  let isRecording = false;
-  let wsReconnectTimeout = null;
-  let ws = null;
-
-  // Audio variables
-  let audioStream = null;
-  let audioContext = null;
-  let recorder = null;
-  let volume = null;
-  let sampleRate = null;
-
-  // Define mapping from model names to brightness values
-  const modelBrightnessMap = {
-    'hey_mycroft_v0.1': 20,
-    'hey_jarvis_v0.1': 200,
-    'alexa_v0.1': 'cookie monster' // Intentionally incorrect value for testing
-    // Add other models here if needed
-  };
-
-  // Cooldown tracking for API calls (milliseconds)
-  const apiCooldown = 2000; // 2 seconds
-  let lastApiCallTimestamp = {}; // Store last call time per model
-
-  // Update status indicator
-  function updateStatus(message) {
-    document.getElementById('statusIndicator').textContent = `Status: ${message}`;
-  }
-
-  // Update recording status
-  function updateRecordingStatus(isActive, message = '') {
-    const recordingStatus = document.getElementById('recordingStatus');
+    // State variables
+    let isListening = false;
+    let isRecording = false;
+    let wsReconnectTimeout = null;
+    let ws = null;
+    let eyeContactDetected = false;
+    let lastPeakLevel = 0;
+    let currentRecordingModel = "";
+    let currentRecordingFile = "";
     
-    if (isActive) {
-      recordingStatus.classList.add('active');
-      if (message) {
-        recordingStatus.textContent = message;
-      } else {
-        recordingStatus.textContent = 'Recording after wake word detection...';
-      }
-    } else {
-      recordingStatus.classList.remove('active');
-    }
-    
-    isRecording = isActive;
-  }
+    // Cooldown tracking to prevent re-triggering too quickly
+    const modelCooldown = 10000; // 10 seconds cooldown
+    const modelCooldowns = {};
+    const modelAbbreviations = {
+      'alexa': 'ALXA',
+      'hey_mycroft': 'MYCR',
+      'hey_jarvis': 'JARV',
+      'hey_rhasspy': 'RHSP',
+      '5_minute_timer': 'TMR5',
+      'weather': 'WTHR',
+      // Add other models as needed
+    };
 
-  // Add recording to the list
-  function addRecordingToList(filename, trigger, wakeWord) {
-    const recordingsList = document.getElementById('recordingsList');
-    const recordingItem = document.createElement('div');
-    recordingItem.className = 'recording-item';
-    
-    const now = new Date().toLocaleTimeString();
-    recordingItem.innerHTML = `
-      <strong>${now}</strong> - Wake word: "${wakeWord}" - 
-      Stopped by: ${trigger} - 
-      File: ${filename}
-    `;
-    
-    recordingsList.prepend(recordingItem);
-  }
+    // Audio variables
+    let audioStream = null;
+    let audioContext = null;
+    let recorder = null;
+    let volume = null;
+    let sampleRate = null;
+    let mediaRecorder = null;
+    let recordedChunks = [];
 
-  // Set up WebSocket connection with improved error handling and reconnection
-  function setupWebSocket() {
-    // Clear any pending reconnection
-    if (wsReconnectTimeout) {
-      clearTimeout(wsReconnectTimeout);
-      wsReconnectTimeout = null;
-    }
-    
-    // Close existing connection if open
-    if (ws) {
-      try {
-        ws.close();
-      } catch (e) {
-        console.error("Error closing existing websocket:", e);
-      }
-    }
-    
-    console.log('Setting up WebSocket connection...');
-    updateStatus('Connecting...');
-    
-    // Create new WebSocket connection
-    try {
-      ws = new WebSocket('ws://localhost:9000/ws');
-      
-      // When the websocket connection is open
-      ws.onopen = function() {
-        console.log('WebSocket connection established');
-        updateStatus('Connected to server');
+    // DOM Elements
+    const goLiveBtn = document.getElementById('goLiveBtn');
+    const soundBarFill = document.getElementById('soundBarFill');
+    const wakeWordOverlay = document.getElementById('wakeWordOverlay');
+    const statusText = document.getElementById('statusText');
+    const recordingsContainer = document.getElementById('recordingsContainer');
+    const leftPupil = document.querySelector('.eye.left .pupil');
+    const rightPupil = document.querySelector('.eye.right .pupil');
+    const leftEyelid = document.querySelector('.eye.left .eyelid');
+    const rightEyelid = document.querySelector('.eye.right .eyelid');
+    const recordingIndicator = document.getElementById('recordingIndicator');
+    const recordingDetails = document.getElementById('recordingDetails');
+    const recordingFilename = document.getElementById('recordingFilename');
+    const cooldownModelsContainer = document.getElementById('cooldownModels');
+
+    // Create cooldown indicators
+    function createCooldownElements(models) {
+      cooldownModelsContainer.innerHTML = '';
+      models.forEach(model => {
+        const element = document.createElement('span');
+        element.className = 'cooldownModel';
+        element.id = `cooldown-${model}`;
+        element.textContent = modelAbbreviations[model] || model.substring(0, 4).toUpperCase();
+        element.title = model;
+        cooldownModelsContainer.appendChild(element);
         
-        // Send sample rate if we're listening
-        if (isListening && sampleRate) {
-          console.log(`Sending sample rate: ${sampleRate}Hz`);
-          ws.send(sampleRate.toString());
+        // Initialize cooldown state
+        modelCooldowns[model] = 0;
+      });
+    }
+
+    // Check if it's too soon to trigger the same model
+    function itsTooSoon(model) {
+      const now = Date.now();
+      return (now - (modelCooldowns[model] || 0)) < modelCooldown;
+    }
+
+    // Update cooldown indicators
+    function updateCooldownIndicators() {
+      const now = Date.now();
+      Object.keys(modelCooldowns).forEach(model => {
+        const element = document.getElementById(`cooldown-${model}`);
+        if (element) {
+          const isAvailable = (now - modelCooldowns[model]) >= modelCooldown;
+          element.classList.toggle('active', isAvailable);
         }
-      };
+      });
+    }
+
+    // Start cooldown timer for regular updates
+    setInterval(updateCooldownIndicators, 1000);
+
+    // Eye tracking
+    document.addEventListener('mousemove', (e) => {
+      if (!isListening) return;
       
-      // When the websocket connection is closed
-      ws.onclose = function(event) {
-        console.log(`WebSocket connection closed: Code ${event.code}`);
-        updateStatus('Disconnected from server');
-        updateRecordingStatus(false);
-        
-        // Attempt to reconnect if we were listening
-        if (isListening) {
-          console.log('Attempting to reconnect in 3 seconds...');
-          updateStatus('Connection lost. Reconnecting in 3s...');
-          wsReconnectTimeout = setTimeout(setupWebSocket, 3000);
+      const x = e.clientX / window.innerWidth;
+      const y = e.clientY / window.innerHeight;
+      
+      // Move pupils to follow cursor
+      const maxMove = 15;
+      const moveX = (x - 0.5) * maxMove;
+      const moveY = (y - 0.5) * maxMove;
+      
+      leftPupil.style.transform = `translate(calc(-50% + ${moveX}px), calc(-50% + ${moveY}px))`;
+      rightPupil.style.transform = `translate(calc(-50% + ${moveX}px), calc(-50% + ${moveY}px))`;
+      
+      // Check for eye contact (when cursor is near the center of the eyes)
+      eyeContactDetected = (Math.abs(moveX) < 5 && Math.abs(moveY) < 5);
+    });
+    
+    // Wink detection (with mouse click on eyes)
+    document.getElementById('eyesContainer').addEventListener('mousedown', () => {
+      if (!isListening) return;
+      
+      // Wink effect
+      document.querySelector('.eye.right').classList.add('wink');
+      
+      // If there's eye contact, trigger Go Live
+      if (eyeContactDetected && !isRecording) {
+        beginRecording("manual_trigger");
+      }
+      
+      // Remove wink after short delay
+      setTimeout(() => {
+        document.querySelector('.eye.right').classList.remove('wink');
+      }, 300);
+    });
+
+    // Update status display
+    function updateStatus(message) {
+      statusText.textContent = `Status: ${message}`;
+    }
+
+    // Generate a filename based on timestamp and model
+    function generateFilename(modelName) {
+      const now = new Date();
+      const dateStr = `${now.getFullYear()}${(now.getMonth()+1).toString().padStart(2, '0')}${now.getDate().toString().padStart(2, '0')}`;
+      const timeStr = `${now.getHours().toString().padStart(2, '0')}${now.getMinutes().toString().padStart(2, '0')}${now.getSeconds().toString().padStart(2, '0')}`;
+      const modelPrefix = modelAbbreviations[modelName] || modelName.substring(0, 4).toUpperCase();
+      return `${modelPrefix}_${dateStr}_${timeStr}.wav`;
+    }
+
+    // Add recording to log
+    function addRecordingToLog(wakeWord, filename) {
+      const recordingItem = document.createElement('div');
+      recordingItem.className = 'recordingItem';
+      
+      const timestamp = new Date();
+      
+      recordingItem.innerHTML = `
+        <strong>${timestamp.toLocaleTimeString()}</strong> - 
+        Wake word: "${wakeWord}" - 
+        File: saved_clips/${filename}
+      `;
+      
+      recordingsContainer.prepend(recordingItem);
+    }
+
+    // Begin recording after wake word detection
+    function beginRecording(wakeWord) {
+      if (wakeWord !== "manual_trigger" && itsTooSoon(wakeWord)) {
+        console.log(`Skipping recording for ${wakeWord} - cooldown active`);
+        return;
+      }
+      
+      isRecording = true;
+      currentRecordingModel = wakeWord;
+      currentRecordingFile = generateFilename(wakeWord);
+      
+      // Set cooldown
+      if (wakeWord !== "manual_trigger") {
+        modelCooldowns[wakeWord] = Date.now();
+        updateCooldownIndicators();
+      }
+      
+      // Update UI
+      wakeWordOverlay.style.opacity = 1;
+      recordingIndicator.classList.add('active');
+      recordingDetails.textContent = `Wake word: ${wakeWord}`;
+      recordingFilename.textContent = currentRecordingFile;
+      
+      // Add to log
+      if (wakeWord !== "manual_trigger") {
+        addRecordingToLog(wakeWord, currentRecordingFile);
+      }
+      
+      // Start actual audio recording
+      startRecording();
+      
+      // Auto-stop recording after 5 seconds
+      setTimeout(() => {
+        endRecording();
+      }, 5000);
+    }
+
+    // End recording
+    function endRecording() {
+      if (!isRecording) return;
+      
+      isRecording = false;
+      wakeWordOverlay.style.opacity = 0;
+      recordingIndicator.classList.remove('active');
+      
+      // Stop the recording
+      stopRecording();
+      
+      console.log(`Stopped recording for "${currentRecordingModel}" to file "${currentRecordingFile}"`);
+      
+      currentRecordingModel = "";
+      currentRecordingFile = "";
+    }
+
+    // Update sound bar visualization
+    function updateSoundBar(level) {
+      // Map audio level (0-32767) to percentage (0-100)
+      const percentage = Math.min(100, Math.max(0, (level / 32767) * 100));
+      soundBarFill.style.width = `${percentage}%`;
+      
+      // Fade out wake word overlay if it's been shown and we're not recording
+      if (!isRecording && wakeWordOverlay.style.opacity > 0) {
+        wakeWordOverlay.style.opacity = parseFloat(wakeWordOverlay.style.opacity) - 0.05;
+        if (parseFloat(wakeWordOverlay.style.opacity) <= 0.05) {
+          wakeWordOverlay.style.opacity = 0;
         }
-      };
+      }
+    }
+
+    // Set up WebSocket connection
+    function setupWebSocket() {
+      // Clear any pending reconnection
+      if (wsReconnectTimeout) {
+        clearTimeout(wsReconnectTimeout);
+        wsReconnectTimeout = null;
+      }
       
-      // When an error occurs
-      ws.onerror = function(error) {
-        console.error('WebSocket error:', error);
-        updateStatus('Connection error');
-      };
-      
-      // Handle messages from the server
-      ws.onmessage = (event) => {
-        let model_payload;
+      // Close existing connection if open
+      if (ws) {
         try {
-          model_payload = JSON.parse(event.data);
+          ws.close();
         } catch (e) {
-          console.error("Failed to parse JSON:", e, "Raw data:", event.data);
-          return; // Stop processing if JSON is invalid
+          console.error("Error closing existing websocket:", e);
         }
-
-        // Handle loaded models
-        if ("loaded_models" in model_payload) {
-          // Add loaded models to the rows of the first column in the table, inserting rows as needed
-          const table = document.querySelector('table');
-          const rows = table.querySelectorAll('tr');
-          for (let i = 1; i < model_payload.loaded_models.length + 1; i++) {
-            if (i < rows.length) {
-              const row = rows[i];
-              const cell = row.querySelectorAll('td')[0];
-              cell.textContent = model_payload.loaded_models[i - 1];
-            } else {
-              // Insert extra rows if needed, both column 1 and 2
-              const row = table.insertRow();
-              const cell1 = row.insertCell();
-              const cell2 = row.insertCell();
-              cell1.textContent = model_payload.loaded_models[i - 1];
-              cell2.textContent = '';
-            }
-          }
-          console.log(`Loaded ${model_payload.loaded_models.length} models`);
-          updateStatus('Connected - Models loaded');
-        }
-
-        // Handle wake word activations
-        if ("activations" in model_payload) {
-          const activations = model_payload.activations;
-          const scores = model_payload.scores || {};
-          
-          console.log("Wake word detected!", activations, scores);
-          
-          // Highlight all activated models in the table
-          const table = document.querySelector('table');
-          const rows = table.querySelectorAll('tr');
-          
-          for (let i = 1; i < rows.length; i++) {
-            const modelCell = rows[i].querySelectorAll('td')[0];
-            const modelName = modelCell.textContent;
-            
-            if (activations.includes(modelName)) {
-              const score = scores[modelName] || 0;
-              const cell = rows[i].querySelectorAll('td')[1];
-              cell.textContent = `Detected! (${score.toFixed(2)})`;
-              cell.classList.add('detected-animation');
-              
-              // Add announcement
-              const recordingStatus = document.getElementById('recordingStatus');
-              recordingStatus.textContent = `Wake word detected: ${modelName} (${score.toFixed(2)})`;
-              recordingStatus.classList.add('active');
-              
-              // Auto-hide after 3 seconds
-              setTimeout(() => {
-                recordingStatus.classList.remove('active');
-              }, 3000);
-              
-              // Remove the CSS class after the animation ends
-              cell.addEventListener('animationend', () => {
-                cell.textContent = '';
-                cell.classList.remove('detected-animation');
-              }, { once: true });
-            }
-          }
-        }
-      };
-    } catch (error) {
-      console.error("Error setting up WebSocket:", error);
-      updateStatus('Failed to connect');
-    }
-  }
-
-  // Initialize audio context and capture
-  async function initializeAudio() {
-    try {
-      if (audioContext) {
-        return true; // Already initialized
       }
       
-      // Get microphone access
-      audioStream = await navigator.mediaDevices.getUserMedia({audio: true});
+      console.log('Setting up WebSocket connection...');
+      updateStatus('Connecting...');
       
-      // Create audio context
-      const context = window.AudioContext || window.webkitAudioContext;
-      audioContext = new context();
-      
-      // Get sample rate
-      sampleRate = audioContext.sampleRate;
-      console.log(`Microphone initialized with sample rate: ${sampleRate}Hz`);
-      
-      // Create gain node
-      volume = audioContext.createGain();
-      
-      // Create audio source
-      const audioInput = audioContext.createMediaStreamSource(audioStream);
-      
-      // Connect source to gain
-      audioInput.connect(volume);
-      
-      // Create script processor with smaller buffer size
-      const bufferSize = 1024;  // Reduced for more frequent predictions
-      recorder = (audioContext.createScriptProcessor ||
-                  audioContext.createJavaScriptNode).call(audioContext,
-                                                         bufferSize,
-                                                         1,
-                                                         1);
-      
-      // Set up audio processing
-      recorder.onaudioprocess = function(event) {
-        // Only process if we're listening and websocket is open
-        if (isListening && ws && ws.readyState === WebSocket.OPEN) {
-          try {
-            const samples = event.inputBuffer.getChannelData(0);
-            
-            // Convert float32 to int16
-            const PCM16iSamples = new Int16Array(samples.length);
-            
-            // Calculate audio level for debugging
-            let peakLevel = 0;
-            
-            for (let i = 0; i < samples.length; i++) {
-              // Apply gentle gain boost to improve sensitivity (1.5x)
-              const boostedSample = samples[i] * 1.5;
-              // Clamp to valid range and convert to int16
-              PCM16iSamples[i] = Math.min(32767, Math.max(-32768, Math.round(boostedSample * 32767)));
-              
-              // Track peak level
-              peakLevel = Math.max(peakLevel, Math.abs(PCM16iSamples[i]));
-            }
-            
-            // Log audio levels periodically to help debugging
-            if (peakLevel > 10000) {
-              console.log(`Audio peak level: ${peakLevel}`);
-            }
-            
-            // Send audio data
-            const blob = new Blob([PCM16iSamples], { type: 'application/octet-stream' });
-            ws.send(blob);
-          } catch (error) {
-            console.error('Error processing audio:', error);
+      // Create new WebSocket connection
+      try {
+        ws = new WebSocket('ws://localhost:9000/ws');
+        
+        // When the websocket connection is open
+        ws.onopen = function() {
+          console.log('WebSocket connection established');
+          updateStatus('Connected to server');
+          
+          // Send sample rate if we're listening
+          if (isListening && sampleRate) {
+            console.log(`Sending sample rate: ${sampleRate}Hz`);
+            ws.send(sampleRate.toString());
           }
-        }
-      };
-      
-      return true;
-    } catch (error) {
-      console.error('Error initializing audio:', error);
-      alert('Error accessing microphone. Please check permissions and try again.');
-      return false;
-    }
-  }
+        };
+        
+        // When the websocket connection is closed
+        ws.onclose = function(event) {
+          console.log(`WebSocket connection closed: Code ${event.code}`);
+          updateStatus('Disconnected from server');
+          
+          // Attempt to reconnect if we were listening
+          if (isListening) {
+            console.log('Attempting to reconnect in 3 seconds...');
+            updateStatus('Connection lost. Reconnecting in 3s...');
+            wsReconnectTimeout = setTimeout(setupWebSocket, 3000);
+          }
+        };
+        
+        // When an error occurs
+        ws.onerror = function(error) {
+          console.error('WebSocket error:', error);
+          updateStatus('Connection error');
+        };
+        
+        // Handle messages from the server
+        ws.onmessage = (event) => {
+          let model_payload;
+          try {
+            model_payload = JSON.parse(event.data);
+          } catch (e) {
+            console.error("Failed to parse JSON:", e, "Raw data:", event.data);
+            return;
+          }
 
-  // Start audio streaming
-  async function startAudio() {
-    try {
-      // Initialize audio if needed
-      if (!await initializeAudio()) {
+          // Handle loaded models
+          if ("loaded_models" in model_payload) {
+            console.log(`Loaded ${model_payload.loaded_models.length} models`);
+            updateStatus('Connected - Models loaded');
+            
+            // Create cooldown indicators for all models
+            createCooldownElements(model_payload.loaded_models);
+          }
+
+          // Handle wake word activations - only process if we're not already recording
+          if ("activations" in model_payload && !isRecording) {
+            const activations = model_payload.activations;
+            const scores = model_payload.scores || {};
+            
+            // Only log once per set of activations
+            console.log("Wake word detected!", activations, scores);
+            
+            // Display the detected wake word
+            if (activations.length > 0) {
+              const modelName = activations[0];
+              const score = scores[modelName] || 0;
+              
+              wakeWordOverlay.textContent = `${modelName} (${score.toFixed(2)})`;
+              wakeWordOverlay.style.opacity = 1;
+              
+              // Begin recording if not in cooldown
+              if (!itsTooSoon(modelName)) {
+                beginRecording(modelName);
+              } else {
+                console.log(`Cooldown active for ${modelName}, skipping recording`);
+              }
+            }
+          }
+        };
+      } catch (error) {
+        console.error("Error setting up WebSocket:", error);
+        updateStatus('Failed to connect');
+      }
+    }
+
+    // Initialize audio context and capture
+    async function initializeAudio() {
+      try {
+        if (audioContext) {
+          return true; // Already initialized
+        }
+        
+        // Get microphone access
+        audioStream = await navigator.mediaDevices.getUserMedia({audio: true});
+        
+        // Create audio context
+        const context = window.AudioContext || window.webkitAudioContext;
+        audioContext = new context();
+        
+        // Get sample rate
+        sampleRate = audioContext.sampleRate;
+        console.log(`Microphone initialized with sample rate: ${sampleRate}Hz`);
+        
+        // Create gain node
+        volume = audioContext.createGain();
+        
+        // Create audio source
+        const audioInput = audioContext.createMediaStreamSource(audioStream);
+        
+        // Connect source to gain
+        audioInput.connect(volume);
+        
+        // Create script processor with smaller buffer size
+        const bufferSize = 1024;
+        recorder = (audioContext.createScriptProcessor ||
+                    audioContext.createJavaScriptNode).call(audioContext,
+                                                          bufferSize,
+                                                          1,
+                                                          1);
+        
+        // Set up audio processing
+        recorder.onaudioprocess = function(event) {
+          // Only process if we're listening and websocket is open
+          if (isListening && ws && ws.readyState === WebSocket.OPEN) {
+            try {
+              const samples = event.inputBuffer.getChannelData(0);
+              
+              // Convert float32 to int16
+              const PCM16iSamples = new Int16Array(samples.length);
+              
+              // Calculate audio level for visualization
+              let peakLevel = 0;
+              
+              for (let i = 0; i < samples.length; i++) {
+                // Apply gentle gain boost to improve sensitivity (1.5x)
+                const boostedSample = samples[i] * 1.5;
+                // Clamp to valid range and convert to int16
+                PCM16iSamples[i] = Math.min(32767, Math.max(-32768, Math.round(boostedSample * 32767)));
+                
+                // Track peak level
+                peakLevel = Math.max(peakLevel, Math.abs(PCM16iSamples[i]));
+              }
+              
+              // Update sound bar visualization
+              updateSoundBar(peakLevel);
+              
+              // Log audio levels periodically
+              if (peakLevel > 10000) {
+                console.log(`Audio peak level: ${peakLevel}`);
+                lastPeakLevel = peakLevel;
+              }
+              
+              // Send audio data
+              const blob = new Blob([PCM16iSamples], { type: 'application/octet-stream' });
+              ws.send(blob);
+            } catch (error) {
+              console.error('Error processing audio:', error);
+            }
+          }
+        };
+        
+        return true;
+      } catch (error) {
+        console.error('Error initializing audio:', error);
+        alert('Error accessing microphone. Please check permissions and try again.');
         return false;
       }
-      
-      // Resume audio context if suspended
-      if (audioContext && audioContext.state === 'suspended') {
-        await audioContext.resume();
-      }
-      
-      // Connect nodes
-      if (volume && recorder) {
-        volume.connect(recorder);
-        recorder.connect(audioContext.destination);
-      }
-      
-      // Send sample rate if WebSocket is connected
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(sampleRate.toString());
-      }
-      
-      return true;
-    } catch (error) {
-      console.error('Error starting audio:', error);
-      return false;
     }
-  }
 
-  // Stop audio streaming
-  function stopAudio() {
-    try {
-      if (recorder && volume) {
-        // Disconnect nodes
-        recorder.disconnect();
-        volume.disconnect();
-        console.log('Audio nodes disconnected');
+    // Start audio streaming
+    async function startAudio() {
+      try {
+        // Initialize audio if needed
+        if (!await initializeAudio()) {
+          return false;
+        }
+        
+        // Resume audio context if suspended
+        if (audioContext && audioContext.state === 'suspended') {
+          await audioContext.resume();
+        }
+        
+        // Connect nodes
+        if (volume && recorder) {
+          volume.connect(recorder);
+          recorder.connect(audioContext.destination);
+        }
+        
+        // Send sample rate if WebSocket is connected
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(sampleRate.toString());
+        }
+        
+        return true;
+      } catch (error) {
+        console.error('Error starting audio:', error);
+        return false;
       }
-      return true;
-    } catch (error) {
-      console.error('Error stopping audio:', error);
-      return false;
     }
-  }
 
-  // Toggle audio streaming
-  async function toggleStreaming() {
-    const startButton = document.getElementById('startButton');
-    
-    if (!isListening) {
-      // Start listening
-      console.log('Starting audio streaming...');
-      
-      // Set up WebSocket first
-      setupWebSocket();
-      
-      // Start audio streaming
-      if (await startAudio()) {
-        // Update state and UI
-        isListening = true;
-        startButton.classList.add('listening');
-        startButton.textContent = 'Stop Listening';
-        updateStatus('Listening for wake words');
-        console.log('Audio streaming started');
+    // Stop audio streaming
+    function stopAudio() {
+      try {
+        if (recorder && volume) {
+          // Disconnect nodes
+          recorder.disconnect();
+          volume.disconnect();
+          console.log('Audio nodes disconnected');
+        }
+        return true;
+      } catch (error) {
+        console.error('Error stopping audio:', error);
+        return false;
+      }
+    }
+
+    // Toggle audio streaming
+    async function toggleStreaming() {
+      if (!isListening) {
+        // Start listening
+        console.log('Starting audio streaming...');
+        
+        // Set up WebSocket first
+        setupWebSocket();
+        
+        // Start audio streaming
+        if (await startAudio()) {
+          // Update state and UI
+          isListening = true;
+          goLiveBtn.classList.add('listening');
+          goLiveBtn.textContent = 'Stop';
+          updateStatus('Listening for wake words');
+          console.log('Audio streaming started');
+        } else {
+          updateStatus('Failed to start audio');
+        }
       } else {
-        updateStatus('Failed to start audio');
+        // Stop listening
+        console.log('Stopping audio streaming...');
+        
+        // Stop audio
+        stopAudio();
+        
+        // Close WebSocket
+        if (ws) {
+          ws.close();
+        }
+        
+        // Update state and UI
+        isListening = false;
+        isRecording = false;
+        goLiveBtn.classList.remove('listening');
+        goLiveBtn.textContent = 'Go Live';
+        updateStatus('Stopped');
+        console.log('Audio streaming stopped');
+        
+        // Hide recording indicator
+        recordingIndicator.classList.remove('active');
+        
+        // Reset eyes
+        leftPupil.style.transform = 'translate(-50%, -50%)';
+        rightPupil.style.transform = 'translate(-50%, -50%)';
       }
-    } else {
-      // Stop listening
-      console.log('Stopping audio streaming...');
-      
-      // Stop audio
-      stopAudio();
-      
-      // Close WebSocket
-      if (ws) {
-        ws.close();
-      }
-      
-      // Update state and UI
-      isListening = false;
-      isRecording = false;
-      updateRecordingStatus(false);
-      startButton.classList.remove('listening');
-      startButton.textContent = 'Start Listening';
-      updateStatus('Stopped');
-      console.log('Audio streaming stopped');
     }
-  }
 
-  // Connect to WebSocket on page load
-  setupWebSocket();
+    // Connect to WebSocket on page load
+    setupWebSocket();
 
-  // Add event listener to the start button
-  document.getElementById('startButton').addEventListener('click', toggleStreaming);
+    // Add event listener to the Go Live button
+    goLiveBtn.addEventListener('click', toggleStreaming);
+
+    // Start capturing audio with MediaRecorder
+    function startRecording() {
+      // Reset recorded chunks
+      recordedChunks = [];
+      
+      // Create a new MediaRecorder using the existing audioStream
+      if (audioStream) {
+        try {
+          // Use a format supported by most browsers
+          let options = {};
+          
+          // Try different MIME types in order of preference
+          if (MediaRecorder.isTypeSupported('audio/webm')) {
+            options = { mimeType: 'audio/webm' };
+            console.log("Using audio/webm format");
+          } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+            options = { mimeType: 'audio/mp4' };
+            console.log("Using audio/mp4 format");
+          } else {
+            console.log("Using default audio format");
+          }
+          
+          mediaRecorder = new MediaRecorder(audioStream, options);
+          
+          // Handle data when available
+          mediaRecorder.ondataavailable = (event) => {
+            if (event.data.size > 0) {
+              recordedChunks.push(event.data);
+              console.log(`Added audio chunk: ${event.data.size} bytes`);
+            }
+          };
+          
+          // When recording stops, save the file
+          mediaRecorder.onstop = () => {
+            console.log(`Recording stopped, saving ${recordedChunks.length} chunks`);
+            saveRecording();
+          };
+          
+          // Start recording with small timeslice to get data frequently
+          mediaRecorder.start(100);
+          console.log(`Started recording for wake word "${currentRecordingModel}" to file "${currentRecordingFile}"`);
+        } catch (err) {
+          console.error("Error starting MediaRecorder:", err);
+        }
+      } else {
+        console.error("No audio stream available for recording");
+      }
+    }
+
+    // Stop the MediaRecorder and trigger saving
+    function stopRecording() {
+      if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop();
+      }
+    }
+
+    // Save the recorded audio to the server
+    function saveRecording() {
+      if (recordedChunks.length === 0) {
+        console.warn("No audio data to save");
+        return;
+      }
+      
+      console.log(`Creating blob from ${recordedChunks.length} chunks`);
+      
+      // Create Blob from the recorded chunks
+      const blob = new Blob(recordedChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
+      console.log(`Created blob: ${blob.size} bytes, type: ${blob.type}`);
+      
+      // Create FormData to send to server
+      const formData = new FormData();
+      formData.append('audio', blob, currentRecordingFile);
+      console.log(`Uploading as "${currentRecordingFile}"`);
+      
+      // Send to server
+      console.log("Sending to server...");
+      fetch('/save-recording', {
+        method: 'POST',
+        body: formData
+      })
+      .then(response => {
+        console.log(`Server response status: ${response.status}`);
+        if (!response.ok) {
+          throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+        }
+        return response.text();
+      })
+      .then(result => {
+        console.log("Server response:", result);
+      })
+      .catch(error => {
+        console.error("Error saving recording:", error);
+      });
+    }
   </script>
 </body>
 </html>

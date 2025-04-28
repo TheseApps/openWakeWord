@@ -27,6 +27,8 @@ from openwakeword import Model
 import resampy
 import argparse
 import json
+import os
+import datetime
 
 # Define websocket handler
 async def websocket_handler(request):
@@ -60,12 +62,17 @@ async def websocket_handler(request):
             predictions = owwModel.predict(data)
 
             activations = []
+            activation_scores = {}
             for key in predictions:
                 if predictions[key] >= 0.3:  # Lowered threshold for better detection
                     activations.append(key)
+                    activation_scores[key] = float(predictions[key])
 
-            if activations != []:
-                await ws.send_str(json.dumps({"activations": activations}))
+            if activations:
+                await ws.send_str(json.dumps({
+                    "activations": activations,
+                    "scores": activation_scores
+                }))
 
     return ws
 
@@ -73,8 +80,55 @@ async def websocket_handler(request):
 async def static_file_handler(request):
     return web.FileResponse('examples/web/streaming_client.html')
 
+# Handle saving recordings
+async def save_recording_handler(request):
+    try:
+        # Create the saved_clips directory if it doesn't exist
+        if not os.path.exists('saved_clips'):
+            os.makedirs('saved_clips')
+            
+        reader = await request.multipart()
+        
+        # Get the audio data
+        field = await reader.next()
+        if field and field.name == 'audio':
+            # Get and sanitize filename
+            filename = field.filename
+            if not filename:
+                filename = f"recording_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.wav"
+                
+            # Clean up the filename to avoid path issues
+            filename = os.path.basename(filename)
+            
+            # Create the full path
+            file_path = os.path.join('saved_clips', filename)
+            print(f"Saving to: {file_path}")
+            
+            # Write the file data in chunks
+            with open(file_path, 'wb') as f:
+                while True:
+                    chunk = await field.read_chunk()
+                    if not chunk:
+                        break
+                    f.write(chunk)
+            
+            print(f"Successfully saved recording to {file_path}")
+            return web.Response(text=f"File saved as {file_path}")
+        else:
+            print("No audio field found in request")
+            return web.Response(text="No audio field found in request", status=400)
+    
+    except Exception as e:
+        error_msg = f"Error saving recording: {str(e)}"
+        print(error_msg)
+        return web.Response(text=error_msg, status=500)
+
 app = web.Application()
-app.add_routes([web.get('/ws', websocket_handler), web.get('/', static_file_handler)])
+app.add_routes([
+    web.get('/ws', websocket_handler), 
+    web.get('/', static_file_handler),
+    web.post('/save-recording', save_recording_handler)
+])
 
 if __name__ == '__main__':
     # Parse CLI arguments
