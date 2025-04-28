@@ -130,7 +130,8 @@ else:
     )
 
 # Set waiting period after activation before saving clip (to get some audio context after the activation)
-save_delay = 1  # seconds
+save_prepend = 3  # seconds
+save_delay = 8  # seconds
 
 # Set cooldown period before another clip can be saved
 cooldown = 4  # seconds
@@ -158,6 +159,9 @@ if __name__ == "__main__":
             if prediction[mdl] >= args.threshold:
                 activation_times[mdl].append(time.time())
 
+            if not args.disable_activation_sound:
+                playBeep(os.path.join(os.path.dirname(__file__), 'audio', 'activation.wav'), audio)
+
             if activation_times.get(mdl) and (time.time() - last_save) >= cooldown \
                and (time.time() - activation_times.get(mdl)[0]) >= save_delay:
                 last_save = time.time()
@@ -168,7 +172,7 @@ if __name__ == "__main__":
 
                 # Capture total of 10 seconds, with the microphone audio associated with the
                 # activation around the ~4 second point
-                audio_context = np.array(list(owwModel.preprocessor.raw_data_buffer)[-16000*10:]).astype(np.int16)
+                audio_context = np.array(list(owwModel.preprocessor.raw_data_buffer)[-16000*save_prepend:]).astype(np.int16)
                 fname = detect_time + f"_{mdl}.wav"
                 scipy.io.wavfile.write(os.path.join(os.path.abspath(args.output_dir), fname), 16000, audio_context)
                 
