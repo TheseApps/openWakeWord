@@ -95,7 +95,7 @@ async def save_recording_handler(request):
             # Get and sanitize filename
             filename = field.filename
             if not filename:
-                filename = f"recording_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.wav"
+                filename = f"{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.wav"
                 
             # Clean up the filename to avoid path issues
             filename = os.path.basename(filename)
