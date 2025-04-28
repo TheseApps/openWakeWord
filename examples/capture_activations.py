@@ -15,7 +15,7 @@
 ##################################
 
 # This example scripts runs openWakeWord continuously on a microphone stream,
-# and saves 5 seconds of audio immediately before the activation as WAV clips
+# and saves audio before and after the wake word activation as WAV clips
 # in the specified output location.
 
 ##################################
@@ -95,6 +95,20 @@ parser.add_argument(
     action='store_true',
     required=False
 )
+parser.add_argument(
+    "--pre_activation_time",
+    help="Seconds of audio to capture before the wake word (2-3 recommended)",
+    type=float,
+    default=3.0,
+    required=False
+)
+parser.add_argument(
+    "--post_activation_time",
+    help="Seconds of audio to capture after the wake word (8-10 recommended)",
+    type=float,
+    default=8.0,
+    required=False
+)
 
 args=parser.parse_args()
 
@@ -129,12 +143,8 @@ else:
         vad_threshold=args.vad_threshold
     )
 
-# Set waiting period after activation before saving clip (to get some audio context after the activation)
-save_prepend = 3  # seconds
-save_delay = 8  # seconds
-
-# Set cooldown period before another clip can be saved
-cooldown = 4  # seconds
+# Set cooldown period before another activation can be processed
+cooldown = 3  # seconds
 
 # Create output directory if it does not already exist
 if not os.path.exists(args.output_dir):
@@ -144,9 +154,12 @@ if not os.path.exists(args.output_dir):
 if __name__ == "__main__":
     # Predict continuously on audio stream
     last_save = time.time()
-    activation_times = collections.defaultdict(list)
-
+    recording_in_progress = False
+    model_activated = None
+    
     print("\n\nListening for wakewords...\n")
+    print(f"Will capture {args.pre_activation_time}s before and {args.post_activation_time}s after wake word\n")
+    
     while True:
         # Get audio
         mic_audio = np.frombuffer(mic_stream.read(CHUNK), dtype=np.int16)
@@ -154,27 +167,49 @@ if __name__ == "__main__":
         # Feed to openWakeWord model
         prediction = owwModel.predict(mic_audio)
 
-        # Check for model activations (score above threshold), and save clips
+        # Check for model activations (score above threshold)
         for mdl in prediction.keys():
-            if prediction[mdl] >= args.threshold:
-                activation_times[mdl].append(time.time())
-
-            if not args.disable_activation_sound:
-                playBeep(os.path.join(os.path.dirname(__file__), 'audio', 'activation.wav'), audio)
-
-            if activation_times.get(mdl) and (time.time() - last_save) >= cooldown \
-               and (time.time() - activation_times.get(mdl)[0]) >= save_delay:
-                last_save = time.time()
-                activation_times[mdl] = []
-                detect_time = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
+            if prediction[mdl] >= args.threshold and not recording_in_progress and (time.time() - last_save) >= cooldown:
+                # Start recording process
+                recording_in_progress = True
+                model_activated = mdl
+                activation_time = time.time()
                 
-                print(f'Detected activation from \"{mdl}\" model at time {detect_time}!')
-
-                # Capture total of 10 seconds, with the microphone audio associated with the
-                # activation around the ~4 second point
-                audio_context = np.array(list(owwModel.preprocessor.raw_data_buffer)[-16000*save_prepend:]).astype(np.int16)
-                fname = detect_time + f"_{mdl}.wav"
-                scipy.io.wavfile.write(os.path.join(os.path.abspath(args.output_dir), fname), 16000, audio_context)
-                
+                # Play activation sound if enabled
                 if not args.disable_activation_sound:
                     playBeep(os.path.join(os.path.dirname(__file__), 'audio', 'activation.wav'), audio)
+                
+                detect_time = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
+                print(f'Detected activation from \"{mdl}\" at time {detect_time}! Recording...')
+                
+                # Get pre-activation audio from buffer (convert seconds to samples)
+                pre_samples = int(args.pre_activation_time * RATE)
+                pre_audio = np.array(list(owwModel.preprocessor.raw_data_buffer)[-pre_samples:]).astype(np.int16)
+                
+                # Start collecting post-activation audio
+                post_audio = []
+                
+                # Calculate number of chunks needed for post-activation recording
+                post_chunks = int((args.post_activation_time * RATE) / CHUNK)
+                
+                # Collect post-activation audio
+                for _ in range(post_chunks):
+                    chunk_audio = np.frombuffer(mic_stream.read(CHUNK), dtype=np.int16)
+                    post_audio.extend(chunk_audio)
+                
+                # Combine pre and post audio
+                full_audio = np.concatenate([pre_audio, np.array(post_audio, dtype=np.int16)])
+                
+                # Save the full audio clip
+                fname = detect_time + f"_{mdl}.wav"
+                scipy.io.wavfile.write(os.path.join(os.path.abspath(args.output_dir), fname), RATE, full_audio)
+                
+                print(f"Saved {args.pre_activation_time + args.post_activation_time}s recording to {fname}")
+                
+                # Play end-of-recording sound if enabled
+                if not args.disable_activation_sound:
+                    playBeep(os.path.join(os.path.dirname(__file__), 'audio', 'activation.wav'), audio)
+                
+                # Reset recording state
+                recording_in_progress = False
+                last_save = time.time()
