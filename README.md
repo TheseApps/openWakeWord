@@ -25,6 +25,63 @@ ModuleNotFoundError: No module named 'resampy': ```pip install resampy```
 ModuleNotFoundError: No module named 'websockets': ```pip install websockets```
 
 
+
+## Using a share on R-Pi
+## Step 1: Create the share (in an elevated Command Prompt)
+```cmd
+    net share openww=C:\gitHubTA\openwakeword\saved_clips /grant:everyone,full
+```
+## Check the share details
+```
+net share
+```
+This should list all your shares, including the new "openww" share.
+## Find your computer's network name and IP
+```
+ipconfig /all
+```
+Look for "IPv4 Address" and "Host Name" - you'll need this information.
+## Test accessing the share locally
+Try accessing it from another Windows computer or from your own computer with:
+```
+\\R2fknD2\openww
+```
+or
+```
+\\YOUR-IP-ADDRESS\openww
+```
+## Setting up Raspberry Pi to use this share
+On each Raspberry Pi:
+1. **Install required tools**:
+   ```
+   sudo apt-get update
+   sudo apt-get install cifs-utils
+   ```
+2. **Create a mount point**:
+   ```
+   sudo mkdir -p /mnt/recordings
+   ```
+3. **Test mount** (replace with your actual IP/hostname and credentials):
+   ```
+   sudo mount -t cifs //YOUR-IP-ADDRESS/openww /mnt/recordings -o username=YOUR-USERNAME,password=YOUR-PASSWORD
+   ```
+4. **For persistent mounting**, edit `/etc/fstab`:
+   ```
+   sudo nano /etc/fstab
+   ```
+   Add this line:
+   ```
+   //YOUR-IP-ADDRESS/openww /mnt/recordings cifs username=YOUR-USERNAME,password=YOUR-PASSWORD 0 0
+   ```
+5. **Run the openWakeWord capture script** pointing to the mount:
+   ```
+   python examples/capture_activations.py --output_dir "/mnt/recordings"
+   ```
+Now all your Raspberry Pi devices will save recordings to your Windows shared folder.
+
+
+
+
 **Quick Links**
 - [Installation](#installation)
 - [Training New Models](#training-new-models)
