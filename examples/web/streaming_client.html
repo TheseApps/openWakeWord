@@ -352,7 +352,8 @@
       const now = new Date();
       const dateStr = `${now.getFullYear()}${(now.getMonth()+1).toString().padStart(2, '0')}${now.getDate().toString().padStart(2, '0')}`;
       const timeStr = `${now.getHours().toString().padStart(2, '0')}${now.getMinutes().toString().padStart(2, '0')}${now.getSeconds().toString().padStart(2, '0')}`;
-      const modelPrefix = modelAbbreviations[modelName] || modelName.substring(0, 4).toUpperCase();
+      // Use the model name directly (using abbreviation map if available)
+      const modelPrefix = modelAbbreviations[modelName] || modelName.replace(/[^a-zA-Z0-9_]/g, '').substring(0, 10); // Sanitize/abbreviate if not mapped
       return `${modelPrefix}_${dateStr}_${timeStr}.wav`;
     }
 
@@ -403,10 +404,10 @@
       // Start actual audio recording
       startRecording();
       
-      // Auto-stop recording after 5 seconds
+      // Auto-stop recording after 12 seconds
       setTimeout(() => {
         endRecording();
-      }, 5000);
+      }, 12000);
     }
 
     // End recording
