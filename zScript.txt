@@ -1,6 +1,5 @@
 
 
-
 Today I was thinking about getting a new device. Perhaps hey jarvis would be a good assistant to have. {count to 4}
 
 I heard alexa is pretty good too, but I prefer something more customizable.
@@ -8,7 +7,6 @@ I heard alexa is pretty good too, but I prefer something more customizable.
 Hey mycroft what's the weather like today? It seems cloudy outside, I'm wondering if I need an umbrella. {count to 4}
 
 My friend Marcus Jarvis called yesterday about the project.
-
 
 Hey jarvis what time is it? {count to 4}
 
@@ -19,7 +17,6 @@ Hey mycroft what's the weather forecast for the next three days? I need to plan 
 Alexa can you turn on the lights in the living room and set the temperature to 72 degrees? {count to 4}
 
 I wonder if Hey far-vis would be a good name for a new system.
-
 
 The car visits the shop often for repairs.
 
@@ -33,8 +30,6 @@ The clerk's name tag said "Hey, My Croft" which was quite unusual.
 
 Hey mycroft ENGAGE the security system and lock all doors. {count to 4}
 
-
-
 Let me share some thoughts about artificial intelligence.
 
 Hey jarvis {count to 4} 
@@ -46,7 +41,6 @@ Hey mycroft play my favorite playlist and ENGAGE the surround sound system. {cou
 I was thinking about visiting Parks and Recreation next weekend.
 
 Alexa set a timer for 30 minutes and then remind me to check on dinner. {count to 4}
-
 
 Hey jarvis I need to create a shopping list including milk, eggs, bread, {count to 4} and also cheese, apples, and cereal. {count to 4}
 
