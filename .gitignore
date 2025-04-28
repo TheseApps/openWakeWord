@@ -6,6 +6,11 @@ __pycache__/
 # C extensions
 *.so
 
+[Oo]utput/
+[Rr]ecordings/
+[Ss]aved_clips/
+[Vv]env/
+
 # Distribution / packaging
 .Python
 build/

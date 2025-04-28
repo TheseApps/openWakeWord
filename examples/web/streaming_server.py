@@ -23,15 +23,10 @@
 import aiohttp
 from aiohttp import web
 import numpy as np
-from openwakeword.model import Model
+from openwakeword import Model
 import resampy
 import argparse
 import json
-import asyncio
-import websockets
-import logging
-import time
-import os
 
 # Define websocket handler
 async def websocket_handler(request):
@@ -66,7 +61,7 @@ async def websocket_handler(request):
 
             activations = []
             for key in predictions:
-                if predictions[key] >= 0.5:
+                if predictions[key] >= 0.3:  # Lowered threshold for better detection
                     activations.append(key)
 
             if activations != []:
@@ -76,7 +71,6 @@ async def websocket_handler(request):
 
 # Define static file handler
 async def static_file_handler(request):
-    # Use the correct path relative to the project root
     return web.FileResponse('examples/web/streaming_client.html')
 
 app = web.Application()
@@ -103,34 +97,25 @@ if __name__ == '__main__':
         "--inference_framework",
         help="The inference framework to use (either 'onnx' or 'tflite'",
         type=str,
-        default='onnx',
+        default='tflite',
         required=False
     )
     args=parser.parse_args()
 
-    # --- Load specific pre-trained models from the local ./models directory ---
-    # Define the list of relative paths to the desired ONNX models
-    local_onnx_model_paths = [
-        "models/alexa_v0.1.onnx",
-        "models/hey_mycroft_v0.1.onnx",
-        "models/hey_jarvis_v0.1.onnx",
-        "models/hey_rhasspy_v0.1.onnx",
-        "models/weather_v0.1.onnx"
-    ]
-
-    # Check if user provided a specific model path argument
+    # Load openWakeWord models
     if args.model_path != "":
-        # If user provided a path, use that one
-        # Also explicitly pass vad_threshold=0.0 to be safe
-        owwModel = Model(wakeword_models=[args.model_path],
-                         inference_framework=args.inference_framework,
-                         vad_threshold=0.0)
+        owwModel = Model(
+            wakeword_models=[args.model_path], 
+            inference_framework=args.inference_framework,
+            vad_threshold=0.1,  # Lower VAD threshold for better sensitivity
+            device="cpu"
+        )
     else:
-        # Otherwise, load the specific models from our local list
-        # Also explicitly pass vad_threshold=0.0 to be safe
-        owwModel = Model(wakeword_models=local_onnx_model_paths,
-                         inference_framework=args.inference_framework,
-                         vad_threshold=0.0)
+        # Load default models
+        owwModel = Model(
+            vad_threshold=0.1,  # Lower VAD threshold for better sensitivity
+            device="cpu"
+        )
 
     # Start webapp
     web.run_app(app, host='localhost', port=9000)

@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wake Word Test Audio Player</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        .audio-container {
+            background-color: #f5f5f5;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        .audio-title {
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        audio {
+            width: 100%;
+            margin-bottom: 10px;
+        }
+        .description {
+            color: #666;
+            font-size: 0.9rem;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <h1>Wake Word Test Audio Player</h1>
+    <p>Listen to the generated test audio files for wake word detection:</p>
+
+    <div class="audio-container">
+        <div class="audio-title">"Hey Jarvis" Test Audio</div>
+        <audio controls>
+            <source src="test_audio/hey_jarvis_test.wav" type="audio/wav">
+            Your browser doesn't support audio playback.
+        </audio>
+        <div class="description">
+            This is a synthetic test file generated with sine waves at 300Hz for "Hey" and 400Hz for "Jarvis".
+        </div>
+    </div>
+
+    <div class="audio-container">
+        <div class="audio-title">"OK Mycroft" Test Audio</div>
+        <audio controls>
+            <source src="test_audio/ok_mycroft_test.wav" type="audio/wav">
+            Your browser doesn't support audio playback.
+        </audio>
+        <div class="description">
+            This is a synthetic test file generated with sine waves at 500Hz for "OK" and 600Hz for "Mycroft".
+        </div>
+        <div class="audio-container">
+        <div class="audio-title">"Hey Jarvis" Realistic Test Audio</div>
+        <audio controls>
+            <source src="test_audio/hey_jarvis_realistic.wav" type="audio/wav">
+            Your browser doesn't support audio playback.
+        </audio>
+        <div class="description">
+            This is a more realistic test file generated with formant synthesis.
+        </div>
+    </div>
+
+    <div class="audio-container">
+        <div class="audio-title">"Hey Mycroft" Realistic Test Audio</div>
+        <audio controls>
+            <source src="test_audio/hey_mycroft_realistic.wav" type="audio/wav">
+            Your browser doesn't support audio playback.
+        </audio>
+        <div class="description">
+            This is a more realistic test file generated with formant synthesis.
+        </div>
+    </div>
+</div>
+
+    <h2>Test Scripts</h2>
+    <p>To generate new test audio files:</p>
+    <ol>
+        <li>Run <code>python examples/create_test_audio.py</code> to create both test files and test with the models</li>
+        <li>Or run <code>python examples/create_test_audio.py --generate-only</code> to just generate the audio files</li>
+    </ol>
+
+    <h2>Troubleshooting Wake Word Detection</h2>
+    <p>If wake words aren't being detected properly in the streaming server:</p>
+    <ol>
+        <li>Make sure the wake word models are available in the models directory</li>
+        <li>Try lowering the detection threshold (default is 0.5)</li>
+        <li>Increase audio levels or reduce background noise</li>
+        <li>Speak the wake word clearly with a slight pause before and after</li>
+    </ol>
+
+    <button onclick="refreshAudio()">Refresh Audio Files</button>
+
+    <script>
+        function refreshAudio() {
+            // Force reload of the audio elements
+            document.querySelectorAll('audio').forEach(audio => {
+                const src = audio.querySelector('source').src;
+                audio.querySelector('source').src = src + '?t=' + new Date().getTime();
+                audio.load();
+            });
+            alert('Audio files refreshed. If you\'ve regenerated the test files, they should now be updated.');
+        }
+    </script>
+</body>
+</html> 
