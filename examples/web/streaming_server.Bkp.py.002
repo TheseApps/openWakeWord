@@ -82,9 +82,6 @@ async def websocket_handler(request):
 async def static_file_handler(request):
     return web.FileResponse('examples/web/streaming_client.html')
 
-
-
-
 # Handle saving recordings
 async def save_recording_handler(request):
     try:
@@ -94,69 +91,66 @@ async def save_recording_handler(request):
             
         reader = await request.multipart()
         
-        # Get the audio data field from the multipart request
+        # Get the audio data
         field = await reader.next()
 
-        if field and field.name == 'audio':
-            # Sanitize and generate filename if not provided by the client
-            filename = field.filename or f"{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.wav"
-            filename = os.path.basename(filename) # Clean up the filename to avoid path issues
-            file_path = os.path.join('saved_clips', filename)
-            
-            print(f"Attempting to save to: {file_path}")
+        
+#region old code ... 
+#        if field and field.name == 'audio':
+#            # Get and sanitize filename
+#            filename = field.filename
+#            if not filename:
+#                filename = f"{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.wav"
+#                
+#            # Clean up the filename to avoid path issues
+#            filename = os.path.basename(filename)
+#            
+#            # Create the full path
+#           file_path = os.path.join('saved_clips', filename)
+#           print(f"Saving to: {file_path}")
+#            
+#            # Write the file data in chunks
+#            with open(file_path, 'wb') as f:
+#                while True:
+#                    chunk = await field.read_chunk()
+#                    if not chunk:
+#                        break
+#                    f.write(chunk)            
+#            print(f"Successfully saved recording to {file_path}")
+#            return web.Response(text=f"File saved as {file_path}")
+#endregion old code ... 
 
-            # Buffer the audio data in memory first
+        #region new code ... 
+        if field and field.name == 'audio':
+            filename = field.filename or f"{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.wav"
+            filename = os.path.basename(filename)
+            file_path = os.path.join('saved_clips', filename)
+            # Buffer the audio data
             audio_buffer = io.BytesIO()
             while True:
                 chunk = await field.read_chunk()
                 if not chunk:
-                    break # End of stream
+                    break
                 audio_buffer.write(chunk)
-            
             audio_bytes = audio_buffer.getvalue()
+            # Write WAV file
+            with wave.open(file_path, 'wb') as wf:
+                wf.setnchannels(1)         # Mono; adjust if stereo
+                wf.setsampwidth(2)         # 16-bit PCM
+                wf.setframerate(16000)     # Sample rate; adjust if needed
+                wf.writeframes(audio_bytes)
+            return web.Response(text=f"File saved as {file_path}")
+        #endregion new code ... 
+        
 
-            # --- Check if audio data was actually received ---
-            if not audio_bytes:
-                print("Received empty audio data for saving.")
-                return web.Response(text="No audio data received in the upload.", status=400)
-
-            # --- Configure WAV file parameters ---
-            # These values MUST match the actual audio format sent from your client-side recorder.
-            # If your client sends different formats, you'll need to pass these
-            # as additional fields in the multipart request or determine them programmatically.
-            n_channels = 1      # Mono (1 channel)
-            samp_width = 2      # 16-bit PCM (2 bytes per sample)
-            framerate = 16000   # 16 kHz sample rate
-
-            try:
-                # Write the buffered audio data to a WAV file with the correct header
-                with wave.open(file_path, 'wb') as wf:
-                    wf.setnchannels(n_channels)
-                    wf.setsampwidth(samp_width)
-                    wf.setframerate(framerate)
-                    wf.writeframes(audio_bytes) # Write all buffered frames
-                
-                print(f"Successfully saved recording to {file_path}")
-                return web.Response(text=f"File saved as {file_path}")
-
-            except wave.Error as we:
-                # Catches errors specific to the wave module (e.g., invalid parameters)
-                error_msg = f"Error processing WAV file: {we}"
-                print(error_msg)
-                return web.Response(text=error_msg, status=500)
-            
         else:
-            # This block handles cases where the 'audio' field isn't found
-            print("No audio field found in the request or field was None.")
-            return web.Response(text="No audio field found in the request.", status=400)
+            print("No audio field found in request")
+            return web.Response(text="No audio field found in request", status=400)
     
     except Exception as e:
-        # Catch any other unexpected errors during the process
-        error_msg = f"An unexpected error occurred while saving recording: {str(e)}"
+        error_msg = f"Error saving recording: {str(e)}"
         print(error_msg)
         return web.Response(text=error_msg, status=500)
-
-
 
 app = web.Application()
 app.add_routes([
