@@ -202,7 +202,9 @@ if __name__ == '__main__':
     else:
         # Load default models
         owwModel = Model(
-            vad_threshold=0.1,  # Lower VAD threshold for better sensitivity
+            wakeword_models=[str(p) for p in (Path(__file__).resolve().parents[1] / "models").rglob("*.onnx")],
+            inference_framework="onnx",
+            vad_threshold=0.1,
             device="cpu"
         )
 
