@@ -1,0 +1,28 @@
+{
+    "alexa_v0.1": {
+        "type": "second_stage",
+        "command": [
+            "python",
+            "-m",
+            "examples.direct_wakeword_test_simple",
+            "--inference_framework",
+            "onnx",
+            "--model_path",
+            "models/alexa_v0.1.onnx"
+        ]
+    },
+    "hey_jarvis_v0.1": {
+        "type": "fixed_record",
+        "seconds": 10,
+        "out_pattern": "recordings/jarvis_{ts}.wav"
+    },
+    "stop": {
+        "type": "command",
+        "command": [
+            "cmd",
+            "/c",
+            "echo",
+            "Stopping..."
+        ]
+    }
+}
