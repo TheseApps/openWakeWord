@@ -31,6 +31,7 @@ import os
 import datetime
 import wave
 import io
+from pathlib import Path
 
 # Define websocket handler
 async def websocket_handler(request):
@@ -66,7 +67,11 @@ async def websocket_handler(request):
             activations = []
             activation_scores = {}
             for key in predictions:
-                if predictions[key] >= 0.3:  # Lowered threshold for better detection
+                # Filter out numeric indices from timer model (0-9 as strings)
+                if key.isdigit():
+                    continue
+                    
+                if predictions[key] >= 0.5:  # Standard threshold for wake words
                     activations.append(key)
                     activation_scores[key] = float(predictions[key])
 
@@ -200,11 +205,18 @@ if __name__ == '__main__':
             device="cpu"
         )
     else:
-        # Load default models
+        # Load default models from the project's models directory
+        # Exclude timer model as it outputs numeric indices that cause false positives
+        models_dir = Path(__file__).resolve().parents[2] / "models"
+        exclude_models = ["melspectrogram.onnx", "embedding_model.onnx", "silero_vad.onnx", "timer_v0.1.onnx"]
+        model_files = [str(p) for p in models_dir.glob("*.onnx") if p.name not in exclude_models]
+        
+        print(f"Loading wake word models: {[Path(m).stem for m in model_files]}")
+        
         owwModel = Model(
-            wakeword_models=[str(p) for p in (Path(__file__).resolve().parents[1] / "models").rglob("*.onnx")],
+            wakeword_models=model_files,
             inference_framework="onnx",
-            vad_threshold=0.1,
+            vad_threshold=0,  # Disable VAD for now to avoid missing model issue
             device="cpu"
         )
 

@@ -24,6 +24,9 @@ ModuleNotFoundError: No module named 'aiohttp': ```pip install aiohttp```
 ModuleNotFoundError: No module named 'resampy': ```pip install resampy```
 ModuleNotFoundError: No module named 'websockets': ```pip install websockets```
 
+pip install PyAudioWPatch
+ pip install tqdm
+
 
 For UI w eye contact stubbed
 python examples/web/streaming_server.py
