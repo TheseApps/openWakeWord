@@ -1,0 +1,48 @@
+## Configuration file for "Hey Frank" / "OK Frank" wake word model
+
+# Model name
+model_name: "hey_frank"
+
+# Target phrases - multiple variations for flexibility
+target_phrase:
+  - "hey frank"
+  - "ok frank"
+  - "okay frank"
+  - "hi frank"
+
+# Phrases to explicitly avoid (similar sounding words)
+custom_negative_phrases: 
+  - "hey fred"
+  - "hey friend"
+  - "ok friend"
+  - "hey francis"
+  - "hey franco"
+  - "hey frances"
+
+# Training parameters - increased samples for multi-phrase model
+n_samples: 80000  # More samples since we have multiple phrases
+n_samples_val: 8000  
+tts_batch_size: 50
+augmentation_batch_size: 16
+
+# Paths (will be set in Colab)
+piper_sample_generator_path: "./piper-sample-generator"
+output_dir: "./hey_frank_model"
+
+# Data augmentation settings
+augmentation_rounds: 3  # More augmentation for better robustness
+
+# Model architecture
+model_type: "dnn"
+layer_size: 48  # Slightly larger for multi-phrase detection
+
+# Training hyperparameters
+steps: 60000  # More steps for better convergence
+max_negative_weight: 1500
+target_false_positives_per_hour: 0.15  # Stricter false positive rate
+
+# Batch settings for training
+batch_n_per_class:
+  "ACAV100M_sample": 1024
+  "adversarial_negative": 60
+  "positive": 60

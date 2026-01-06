@@ -1,0 +1,44 @@
+## Configuration file for "I am" wake word model
+
+# Model name
+model_name: "i_am"
+
+# Target phrases - adding variations helps robustness
+target_phrase:
+  - "i am"
+  - "i'm"
+
+# Phrases to explicitly avoid (helps reduce false positives)
+custom_negative_phrases: 
+  - "i have"
+  - "i had"
+  - "i can"
+  - "i will"
+
+# Training parameters
+n_samples: 50000  # Number of synthetic samples to generate
+n_samples_val: 5000  # Validation samples
+tts_batch_size: 50
+augmentation_batch_size: 16
+
+# Paths (will be set in Colab)
+piper_sample_generator_path: "./piper-sample-generator"
+output_dir: "./i_am_model"
+
+# Data augmentation settings
+augmentation_rounds: 2  # Apply augmentations twice for variety
+
+# Model architecture
+model_type: "dnn"
+layer_size: 32  # Standard size, good balance of performance/accuracy
+
+# Training hyperparameters
+steps: 50000
+max_negative_weight: 1500
+target_false_positives_per_hour: 0.2
+
+# Batch settings for training
+batch_n_per_class:
+  "ACAV100M_sample": 1024
+  "adversarial_negative": 50
+  "positive": 50

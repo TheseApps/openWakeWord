@@ -1,0 +1,47 @@
+## Template for additional custom wake word models
+
+# Here are some example configurations for other common wake words
+# Copy and modify these for your specific needs
+
+# ===== "Computer" Model =====
+# model_name: "computer"
+# target_phrase:
+#   - "computer"
+#   - "hey computer"
+# custom_negative_phrases:
+#   - "commuter"
+#   - "compute"
+#   - "computing"
+
+# ===== "Assistant" Model =====
+# model_name: "assistant"
+# target_phrase:
+#   - "hey assistant"
+#   - "ok assistant"
+#   - "hello assistant"
+# custom_negative_phrases:
+#   - "assistance"
+#   - "persistent"
+
+# ===== Smart Home Commands =====
+# model_name: "lights_on"
+# target_phrase:
+#   - "lights on"
+#   - "turn on the lights"
+#   - "lights please"
+# custom_negative_phrases:
+#   - "lights off"
+#   - "lights out"
+
+# ===== Custom Name Models =====
+# For names, consider:
+# - Including nicknames
+# - Common mispronunciations
+# - Similar sounding names to exclude
+
+# Tips for training:
+# 1. More samples (50k-100k) = better accuracy
+# 2. Include variations of pronunciation
+# 3. Add similar-sounding negatives to reduce false positives
+# 4. Test with different speakers and accents
+# 5. Adjust threshold after training for best results

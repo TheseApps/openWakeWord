@@ -1,3 +1,8 @@
+# Secret keys file (NEVER commit this!)
+.secrets
+.secrets.json
+*.secrets
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

@@ -1,0 +1,123 @@
+# Cursor IDE Rules for openWakeWord Project
+
+## Security Rules
+
+### API Keys and Secrets Management
+**NEVER hardcode API keys, tokens, or secrets directly in code files.**
+
+When you need to use an API key or secret:
+
+1. **DO NOT** write:
+```python
+api_key = "sk-abc123def456..."  # NEVER DO THIS
+ACCESS_KEY = "paste_key_here"    # NEVER DO THIS
+```
+
+2. **ALWAYS** use the secure secrets pattern:
+```python
+# Import the secrets manager
+from utils.secrets import get_required_secret, get_secret
+
+# For required keys (exits if not found)
+api_key = get_required_secret("SERVICE_NAME_KEY")
+
+# For optional keys (returns None if not found)
+api_key = get_secret("SERVICE_NAME_KEY", default="demo_key")
+```
+
+3. **ALWAYS** provide instructions for users:
+```python
+# ============================================================
+# This script requires API keys in the .secrets file
+# Setup:
+# 1. Open .secrets file in project root
+# 2. Add: SERVICE_NAME_KEY=your_actual_key
+# 3. Save the file
+# ============================================================
+```
+
+4. **ALWAYS** check that .secrets is in .gitignore
+
+### When Creating New Scripts with API Keys:
+
+1. Import the secrets manager at the top
+2. Document which keys are needed
+3. Use get_required_secret() for mandatory keys
+4. Provide clear error messages if keys are missing
+5. Include setup instructions in comments
+
+### Example Template:
+```python
+"""
+Script description here
+Requires: SERVICE_NAME_KEY in .secrets file
+"""
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from utils.secrets import get_required_secret
+
+# Load API key securely
+API_KEY = get_required_secret("SERVICE_NAME_KEY")
+```
+
+## Code Style Rules
+
+### File Headers
+All Python files should include copyright and license headers when appropriate.
+
+### Imports
+- Group imports: standard library, third-party, local
+- Use absolute imports when possible
+- Add sys.path modifications if needed for imports
+
+### Error Handling
+- Always include try/except blocks for external API calls
+- Provide helpful error messages
+- Exit gracefully with sys.exit(1) for critical errors
+
+### Documentation
+- Include docstrings for all functions and classes
+- Add inline comments for complex logic
+- Provide usage examples in file headers
+
+## Project-Specific Rules
+
+### Wake Word Models
+- Store models in the `models/` directory
+- Use `.onnx` format for openWakeWord models
+- Use `.ppn` format for Picovoice models
+- Document model capabilities and limitations
+
+### Audio Processing
+- Default sample rate: 16000 Hz
+- Default audio format: 16-bit PCM mono
+- Frame size for openWakeWord: 1280 samples (80ms)
+
+### Testing
+- Always test with multiple speakers when possible
+- Test in various noise conditions
+- Document test results and performance metrics
+
+## Git Commit Rules
+
+### Commit Messages
+- Use clear, descriptive commit messages
+- Start with a verb: "Add", "Fix", "Update", "Remove"
+- Reference issue numbers when applicable
+
+### Files to Never Commit
+- `.secrets` - API keys and secrets
+- `*.pyc` - Python bytecode
+- `__pycache__/` - Python cache directories
+- `.venv*/` - Virtual environments
+- `saved_clips/` - Audio recordings (privacy)
+
+## Security Best Practices
+
+1. **Never log sensitive data** - No API keys in logs
+2. **Validate all inputs** - Especially for web interfaces
+3. **Use HTTPS** for all external API calls
+4. **Rotate keys regularly** - Document expiration dates
+5. **Principle of least privilege** - Request only needed permissions
