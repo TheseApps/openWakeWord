@@ -1,0 +1,35 @@
+---
+description: AI output shaping rule: file=>folder and proc=>file
+globs:
+alwaysApply: true
+---
+
+We are intentionally trying to prevent the common AI failure-mode:
+- one behemoth file
+- many functions per file
+- implicit coupling and “amoeba code”
+
+Default behaviors:
+
+## fileIsFolder
+- If you (the AI) would normally create a **single new file** for a feature, instead create a **folder**.
+- Put small, single-purpose files inside that folder.
+- Prefer “modular, not micro” (sweet-spot): small cluster of cohesive files, not 100 micro-silos, not 1 monolith.
+
+## procIsFile
+- If you (the AI) would normally create **multiple functions/methods** in one file, instead create:
+  - one procedure / operation per file
+  - one primary function per file
+- Helpers are allowed, but the default is: **one-task-per-function-per-file**.
+
+## naming++ (hungarianAndLong)
+- Use long, descriptive names.
+- Prefer Hungarian-ish prefixes for strings like `txt...`.
+- Never use property/field names like `name` or `id`.
+  - Use `txtFriendlyLabel`, `txtInstanceIdentifier`, etc.
+
+## try/catch/finally++ (ubiquitous)
+- Always lead with try/catch/finally for operations that can fail.
+- Use nested try/catch for loop bodies when partial failure is acceptable.
+- Normalize errors through common handlers (no silent failures).
+

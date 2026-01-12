@@ -1,0 +1,11 @@
+# Rules must include WHY (required)
+
+Whenever we add or change:
+- `.cursor/rules/*.mdc` rules
+- operational conventions (compose patterns, naming, build patterns)
+- schema decisions (tables/views/procs)
+
+we must include **WHY** (the rationale), not only WHAT.
+
+Rationale: our “WHY” changes over time. If we only record WHAT, the system becomes rigid and future work repeats old mistakes.
+

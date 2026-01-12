@@ -126,21 +126,37 @@ async def save_recording_handler(request):
                 return web.Response(text="No audio data received in the upload.", status=400)
 
             # The browser sends WebM/Opus format, not raw PCM
-            # We need to convert it or save as-is
+            # Save as WebM first, then convert
             
-            # For now, save as WebM and inform user
             webm_path = file_path.replace('.wav', '.webm')
             
             try:
-                # Save the WebM data
+                # Save the WebM data with proper binary mode
                 with open(webm_path, 'wb') as f:
                     f.write(audio_bytes)
+                    f.flush()  # Ensure all data is written
+                    os.fsync(f.fileno())  # Force write to disk
                 
-                print(f"Saved WebM recording to {webm_path}")
+                print(f"Saved WebM recording to {webm_path} ({len(audio_bytes)} bytes)")
+                
+                # Small delay to ensure file is ready
+                import time
+                time.sleep(0.1)
                 
                 # Try to convert to WAV if ffmpeg is available
                 try:
                     import subprocess
+                    
+                    # First, probe the file to see if it's valid
+                    probe_cmd = ['ffprobe', '-v', 'error', '-show_entries', 
+                                 'format=duration', '-of', 'json', webm_path]
+                    probe_result = subprocess.run(probe_cmd, capture_output=True, text=True)
+                    
+                    if probe_result.returncode != 0:
+                        print(f"WebM file appears to be invalid: {probe_result.stderr}")
+                        return web.Response(text=f"Recording saved as {webm_path} but appears corrupted", status=500)
+                    
+                    # Convert to WAV
                     cmd = [
                         'ffmpeg', '-i', webm_path,
                         '-acodec', 'pcm_s16le',  # 16-bit PCM
@@ -149,20 +165,25 @@ async def save_recording_handler(request):
                         '-y',                    # Overwrite
                         file_path
                     ]
-                    result = subprocess.run(cmd, capture_output=True, stderr=subprocess.PIPE)
+                    
+                    print(f"Converting: {' '.join(cmd)}")
+                    result = subprocess.run(cmd, capture_output=True, text=True)
                     
                     if result.returncode == 0:
                         os.remove(webm_path)  # Remove WebM after conversion
-                        print(f"Converted to WAV: {file_path}")
+                        print(f"Successfully converted to WAV: {file_path}")
                         return web.Response(text=f"File saved as {file_path}")
                     else:
-                        print(f"FFmpeg conversion failed: {result.stderr.decode()}")
+                        print(f"FFmpeg conversion failed: {result.stderr}")
+                        return web.Response(text=f"File saved as {webm_path} (conversion failed)", status=500)
                         
-                except (FileNotFoundError, Exception) as e:
-                    print(f"FFmpeg not available: {e}")
-                
-                # FFmpeg not available, keep WebM
-                return web.Response(text=f"File saved as {webm_path} (WebM format - install ffmpeg for WAV conversion)")
+                except FileNotFoundError:
+                    print("FFmpeg not installed. Please install ffmpeg for WAV conversion.")
+                    print("Download from: https://ffmpeg.org/download.html")
+                    return web.Response(text=f"File saved as {webm_path} (install ffmpeg for WAV)")
+                except Exception as e:
+                    print(f"Conversion error: {e}")
+                    return web.Response(text=f"File saved as {webm_path} (error during conversion)")
 
             except wave.Error as we:
                 # Catches errors specific to the wave module (e.g., invalid parameters)

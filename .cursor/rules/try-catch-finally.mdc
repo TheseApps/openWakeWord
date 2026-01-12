@@ -1,0 +1,32 @@
+---
+alwaysApply: true
+---
+always lead with try/catch/finally error handling
+wrap operations that can fail in try blocks
+use catch blocks to handle specific exceptions gracefully
+use finally blocks for cleanup when needed
+never add error handling reactively after failures - build it in from the start
+prefer explicit error handling over silent failures
+when operations can fail, assume they will and handle accordingly
+ubiquitous try/catch/finally - this is our standard pattern
+
+use inner, outer, and nested-loop catch 
+format our logs and errors through common handlers
+
+### Meaningful error wrapping (required)
+- When throwing/wrapping, include:
+  - operation/procedure identifier (file/class/method)
+  - the **minimum** relevant context keys (argument names, IDs, phase identifiers)
+  - a concrete “how to fix” hint (what the user should do next)
+- Never dump secrets:
+  - do not echo connection strings, passwords, tokens
+  - prefer printing only arg **keys** present, not values
+- Prefer actionable messages over longer ones:
+  - “Missing arg X; in VS set Debug->Args…; or set env var Y” beats a stack trace alone
+
+### Log flood protection (required)
+- If a component is emitting the same log line hundreds/thousands of times, treat that as a failure-mode.
+- Prefer a SmartProc-style aggregator that:
+  - writes the first few instances
+  - then collapses repeats into periodic checkpoints (10/25/50/100/...)
+  - never allows “meaningless thousands” of identical entries to drown signal

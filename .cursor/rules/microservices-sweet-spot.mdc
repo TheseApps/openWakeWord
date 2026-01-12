@@ -1,0 +1,22 @@
+---
+alwaysApply: true
+---
+
+we adhere to "micro-services goldilocks sweet-spot" 
+
+Scenario A: 100 One-Off APIs
+
+Pros: Each API is isolated, easy to reason about, can be versioned/deployed independently.
+Cons: Lots of boilerplate, potential for code duplication, harder to manage cross-cutting concerns, more infra overhead.
+
+Scenario B: 2-3 Large APIs
+Pros: Centralized logic, easier to share code, fewer moving parts, easier to manage shared resources.
+Cons: Risk of “big ball of mud,” harder to experiment, breaking changes more likely to ripple, deployments riskier.
+
+Scenario C: “Sweet Spot” (Modular, but not Micro)
+Pros: Group related functionality, keep boundaries clear, balance between isolation and manageability.
+Cons: Still some duplication, but less than 100 one-offs; still some coupling, but less than a monolith.
+
+we always choose `c`
+
+this is taken in conjunction with @\.cursor\rules\no-yodeling.mdc which discourages your seeming default of diving right in and doing, instead of taking it piece by piece 

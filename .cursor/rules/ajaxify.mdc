@@ -1,0 +1,10 @@
+---
+alwaysApply: true
+---
+we want to ajaxify everything
+load the page
+load all elements
+laodContentThroughAjax()
+if there is an element on-screen, that interactsa in any way w the server - it does so w ajax.. the updates are reflected via ajax
+we approach this entirely from the midnset of 'we want a system whose lag-time is limited exclusively to content.content.update() -- nothing more'
+

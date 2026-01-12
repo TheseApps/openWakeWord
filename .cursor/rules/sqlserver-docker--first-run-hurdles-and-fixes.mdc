@@ -1,0 +1,53 @@
+# SQL Server (Docker) — First-run hurdles + fixes (Frank)
+
+## Why this card exists
+These are the recurring “Microsoft first-time” + Docker/compose pitfalls we hit while building the city import pipeline, and the **specific fixes that worked**.
+
+## Hurdles we hit (and fixes)
+
+### Container name collisions break disposable cycles
+- **Symptom**: `Conflict. The container name "/frank-sqlserver" is already in use...`
+- **Cause**: `container_name:` in `docker-compose.mssql.yml` forces a global name across projects.
+- **Fix**: remove `container_name` from services; rely on `docker compose -p <cycleId>` to isolate worlds.
+
+### SSMS can’t connect (Named Pipes / file-not-found error)
+- **Symptom**: SSMS error referencing Named Pipes provider / “system cannot find the file specified”.
+- **Reality check**: if Docker is publishing the port, this is almost always a *server name format / encryption prompt / wrong port* problem, not “enable TCP in SQL”.
+- **Fix**:
+  - Use **comma** for port: `localhost,11433` (NOT `localhost:11433`).
+  - SSMS: SQL Login `sa`, password = `FRANK_SQL_SA_PASSWORD`.
+  - If prompted: `Encrypt=True` + `TrustServerCertificate=True` (or toggle UI equivalent).
+
+### Bulk import issues on Linux SQL Server
+- **Symptom**: `BULK INSERT` fails with encoding/codepage flags.
+- **Cause**: some `CODEPAGE` options aren’t supported the same way on Linux containers.
+- **Fix**: remove `CODEPAGE` clauses; do conversions during `INSERT ... SELECT` with `TRY_CONVERT`.
+
+### CSV parsing breaks due to commas/quotes/newlines inside fields
+- **Symptom**: `BULK INSERT` fails / column shifts.
+- **Fix**: preprocess to a pipe-delimited text file (e.g. `worldcities.pipe.txt`) and import with `FIELDTERMINATOR='|'` and explicit `ROWTERMINATOR`.
+
+### Truncation / type conversion failures during import
+- **Symptom**: truncation or conversion errors when importing raw sources.
+- **Fix**: stage everything as `NVARCHAR(MAX)` (raw landing tables) then type it during the next insert with `TRY_CONVERT`, `NULLIF`, `REPLACE`.
+
+### OUTPUT INTO fails when target table participates in FK
+- **Symptom**: `OUTPUT INTO ... cannot be on either side of a (primary key, foreign key) relationship`
+- **Fix**: don’t use `OUTPUT INTO` for crosswalk population; insert canonical rows first, then populate crosswalk via a follow-up `INSERT ... SELECT`.
+
+### Canonical city key collisions
+- **Symptom**: uniqueness violations for canonical IDs.
+- **Fix**: include a stable source key (e.g. SimpleMaps `id`) in canonical identity construction and/or store it as its own column (e.g. `intSimpleMapsId`).
+
+## Operational pattern (repeatable)
+- Set password in the same shell session:
+  - `$env:FRANK_SQL_SA_PASSWORD = "<StrongPassword>"`
+- Spawn a world:
+  - `docker compose -p frank_YYYYMMDD_HHMM -f Frank.Docker/docker-compose.mssql.yml up -d frank-sqlserver`
+- Run importer:
+  - `docker compose -p frank_YYYYMMDD_HHMM -f Frank.Docker/docker-compose.mssql.yml run --rm frank-sqltools`
+
+## Connection strings
+- SSMS server name: `localhost,11433`
+- ADO.NET example:
+  - `Server=localhost,11433;Database=FrankCityDb;User Id=sa;Password=<pw>;Encrypt=True;TrustServerCertificate=True;`

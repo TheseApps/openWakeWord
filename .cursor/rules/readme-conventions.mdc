@@ -1,0 +1,12 @@
+# Readme conventions (required)
+
+## WHY
+We keep relearning the same “how do I run this?” steps. Standardized readmes reduce churn and prevent drift.
+
+## Rules
+- Root-level docs must include a **“How to run (quick)”** section near the top.
+- Prefer **named readmes** over generic `README.md`:
+  - `frank.<Concept>.readme.md`
+  - Example: `frank.linguaFranca.readme.md`
+- Readmes should link to nested readmes (also named with the same convention) for module-specific details.
+

@@ -1,0 +1,15 @@
+# Remediation breadcrumbs (required)
+
+When troubleshooting causes a direction change (ex: attempt A failed → attempt B → final fix), leave breadcrumbs:
+
+- Create/update a short note under a **module-local** path like:
+  - `<module>/aRef/notes/YYYYMMDD.<topic>.md`
+- Include:
+  - **Symptom** (what we saw)
+  - **Attempt(s)** (what we tried)
+  - **Why it failed** (the key insight)
+  - **Final fix** (what we shipped)
+  - **Follow-ups** (if any)
+
+Purpose: prevent re-learning the same painful lesson later; make the repo teach itself.
+

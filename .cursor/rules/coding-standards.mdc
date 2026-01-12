@@ -1,0 +1,73 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Programming | Coding Standards: 
+
+we prefer "tried and true" over "latest and greatest".. 
+established patterns of years WAY over 'lookit wut wee can doo' .. 
+
+please don't railroad me into dll-hell and confilct ..
+ - one of the goals of these cards is .. 
+ - - lay down the environment
+ - - lay down the tools
+ - - learn(), create(), do()
+ - - clean TF up !
+an `installshield for devs` not just `installshield for apps` 
+
+## Languages:
+user was a C# developer for ~20 years.. 
+choose c#, or languages as `close to` c# as possible
+ - .js, .ps1 .. these are ok 
+ - .py and any number of others are our default, but - when possible; go #1 .cs or #2 .ps1 / .js or #3 py / modern .. if its not on that list, its probably referential
+
+## Properties: 
+j.i.t. props w private vars are great
+/*
+<summary>...</summary>
+*/
+private _someVar;
+public SomeVar
+{
+    get
+    {
+        if(null==_someVar)
+            { _someVar=lazyLoad(); }
+        return _someVar;
+    }
+    set { _someVar=value; }
+}
+
+## Methods: 
+
+## Events: 
+
+## Files : How Many? What Names?
+- lots of little files, not one big one
+- naming.Conventions: 
+    - /OurApi/LocalCopyOfExternal.ANY (<= local copies of 3rd party | oss libraries)
+    - /OurApi/OurFirstApi.Ingress (<=load ext refs, + all of ours)
+    - /OurFirstApi/OurFirstApi.Func1Name
+    - /OurFirstApi/OurFirstApi.Func2Name
+    - /OurFirstApi/OurFirstApi.Func3Name
+    - /OurSecondApi/OurSecondApi.Func1Name
+    - /OurSecondApi/OurSecondApi.Func2Name
+
+# hungarianAndLong
+
+
+## In-File Standards:
+- always `normalize()` .. no `behemoth code`.. 
+ - - we want ONE-Single-Task-Per-Function-No-Exceptions
+ - - if you come across `good` opportunities to reFactor(useYourBestJudgementANdAlwaysDiscuss) => let me know
+
+- we use camelCase, and txtHungarian, and ALL_OfOurNamesAreLongAndNeverJust_Name
+ - - please never (just. not. ever.) use `name` and `id` as fieldNames.. i *WILL* disassemble you, Number Johnny Five !
+ - - the above two Rules are Absolutes , and apply to everything, be it; objectNames, fileNames, property|method|eventNames, etc
+
+- the structure used above is one we want to follow
+- - ## Properties 
+- - ## Methods 
+- - ## Events  
+- each in a collapsible #(end)region `regionName++`, eg `Properties: Prop1, Prop2` || `Events: Evt1, Evt2`

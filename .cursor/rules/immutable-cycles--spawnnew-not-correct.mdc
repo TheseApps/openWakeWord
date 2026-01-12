@@ -1,0 +1,30 @@
+# SpawnNewNotCorrect (immutable cycles)
+
+## Why
+We want fast-forward cycles and the ability to **read the past without being moored to it**.
+So our default is: **spawn a new world** rather than patching the current one.
+
+## Rule
+- Prefer **new => new => new** cycles over in-place corrections.
+- Past cycles remain queryable (read-only), but we do not “repair history”.
+
+## Docker / DB operationalization
+- **Never mutate a running container image.**
+  - Changes happen by changing repo files and restarting with a *new* compose project.
+- Use **compose project names** as cycle IDs:
+  - Example: `frank_20251219_0805`.
+- Use **new volumes per cycle** when you need a clean world.
+- Keep import sources mounted **read-only**.
+
+## Commands (pattern)
+- **Spawn new world** (fresh volumes):
+  - `docker compose -p frank_YYYYMMDD_HHMM -f Frank.Docker/docker-compose.mssql.yml up -d`
+- **Kill world**:
+  - `docker compose -p frank_YYYYMMDD_HHMM -f Frank.Docker/docker-compose.mssql.yml down`
+- **Kill + delete world data** (irreversible for that cycle):
+  - `docker compose -p frank_YYYYMMDD_HHMM -f Frank.Docker/docker-compose.mssql.yml down -v`
+
+## Data snapshots
+- Prefer append-only exports per cycle:
+  - `.../Frank.Docker/sql/` scripts are versioned by timestamp.
+  - DB snapshots/backups should be stored with the same cycle ID.

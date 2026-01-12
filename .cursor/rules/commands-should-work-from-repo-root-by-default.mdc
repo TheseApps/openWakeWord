@@ -1,0 +1,23 @@
+---
+description: Command examples should be copy/paste-able from repo root by default
+globs:
+alwaysApply: true
+---
+
+We want commands that are easy to run even when the user is “in the dumb”:
+- The terminal often opens at repo root (e.g., `C:\GitHub\TerranAstra\frank\`).
+- Users may forget to `cd` into a module folder.
+
+## defaultCommandCwdIsRepoRoot
+- When giving command examples, **assume the current working directory is the repo root**.
+- Prefer commands that can be copied from the AI and pasted directly into the default terminal.
+
+## modulePathsShouldBeExplicit
+- Use explicit module-relative paths from repo root, e.g.:
+  - `.\Frank.Input\Frank.Input.Webcam\Frank.Input.Webcam.005\...`
+- Avoid relying on implicit `cd` state unless explicitly requested.
+
+## stillRespectWorkingRootIsModuleFolder
+- For generated artifacts (outputs, logs, json), still write into the **module’s** `.\out\` directory.
+- Example: `...\Frank.Input.Webcam.005\out\...` (not repo root `.\out\...`).
+

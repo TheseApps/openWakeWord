@@ -1,0 +1,45 @@
+---
+description: NFC; NFC-Reader; NFC-Card(s); 
+globs: 
+alwaysApply: false
+---
+We are working on an NFC Card-Reader, to work as a Jukebox
+Place the card on the reader: ``Play:{Album:ABCDEF}By:{Band:XYZ}``
+
+Our Cards: @https://www.amazon.com/dp/B0C699958D?ref=ppx_yo2ov_dt_b_fed_asin_title&th=1 
+Our Reader: @https://www.amazon.com/dp/B0CD2XTMV3?ref=ppx_yo2ov_dt_b_fed_asin_title 
+
+Be aware of the NTAG 215 memory layout and access protections:
+Pages 0 to 1 contain the UID and are read-only
+Pages 4 to 129 are user memory
+Pages 2, 130, and 131 contain lock bits that can restrict access
+Pages 132 to 133 are configuration pages
+Page 134 allows setting a password for memory access
+For advanced usage, you can send raw commands using reader.transmit. Refer to the NXP NTAG 215 datasheet for the full command set.
+
+Based on the Amazon links provided, it seems you are using NTAG 215 NFC cards with an ACR122U NFC reader to read and write data.
+The NTAG 215 cards are a type of NFC Forum Type 2 tag, which means they support a simple command set for reading and writing data. The key capabilities are:
+504 bytes of user memory
+User memory is divided into 4-byte pages
+Supports fast read command to read multiple pages at once
+Write command writes one 4-byte page at a time
+Has a 7-byte unique identifier (UID)
+Supports password protection for memory access
+The ACR122U reader is a popular NFC reader that is compatible with the PC/SC API. It can communicate with most NFC tags and cards, including the NTAG 215.
+To read and write data on the NTAG 215 cards using the ACR122U reader and the nfc-pcsc library:
+Connect to the ACR122U reader using nfc-pcsc
+Wait for a 'card' event indicating an NTAG 215 card is detected
+Send commands to read the UID and user memory pages
+For UID, use the standard GET_UID command
+For user memory, use READ and FAST_READ commands
+To write data, use the WRITE command to write 4 bytes to a page
+Be aware of the card's memory layout and any lock bits or password protection that may be enabled
+Some key pages to be aware of:
+Page 0 to 1: UID and internal bytes (read-only)
+Page 2: Static lock bits
+Page 3: CC (Capability Container)
+Page 4 to 129: User memory
+Page 130 to 131: Dynamic lock bits
+Page 132 to 133: Configuration pages
+
+Page 134: Password

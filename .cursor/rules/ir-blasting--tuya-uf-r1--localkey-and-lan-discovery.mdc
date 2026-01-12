@@ -1,0 +1,102 @@
+# IR Blasting (Tuya UF‑R1 / “Smart IR”) — LAN Discovery + localKey Retrieval
+
+## Purpose
+Provide the repeatable, minimal path to:
+- discover a Tuya IR blaster on the LAN
+- confirm reachability (port 6668)
+- retrieve the Tuya `localKey` needed for encrypted local control
+
+This exists to prevent “we did it once, then forgot how”.
+
+## Critical Security Rule (Do Not Break)
+- **Never commit** `localKey`, access tokens, client secrets, or passwords to git.
+- Treat `localKey` as a secret.
+- Store secrets in **env vars** or an untracked local file (example: `gemini/irBlast/user-files/secrets.local.json` in `.gitignore`).
+
+## Device Facts (as observed)
+- Device: “Smart IR” (model often `UFO‑R1/R2`)
+- Connects via **2.4GHz Wi‑Fi**
+- Local protocol: TCP **6668** (Tuya encrypted local protocol)
+- Web UI on port 80 is often **absent**.
+
+## Our Devices + Findings (Jeff’s house) 
+This section is **session-specific**. Keep it as a living log of what we *actually observed*, but don’t assume it generalizes to other hardware.
+
+- **TV**: TCL Roku TV
+  - Repo has a starter code library: `gemini/irBlast/src/utils/tcl-roku-codes.ts`
+- **Fans**: Minka Aire 52"
+  - Many Minka Aire fans use **RF remotes** (not IR). Frequency varies by remote; confirm by checking the remote’s **FCC ID** label and looking up its band (commonly 315/433 MHz families).
+- **Garage door**: “Chamberlain LiftMaster Professional”
+  - Likely **rolling code**; universal RF learners typically **cannot** clone it reliably.
+  - Expect to need a **dedicated smart garage controller** (e.g., the LiftMaster/Chamberlain ecosystem or another opener-integrated solution) rather than a generic IR/RF blaster.
+
+### Trial & Error (Tuya “Smart IR” / UFO-R1 local protocol)
+- We successfully connected locally (deviceId/ip/localKey present).
+- Local DPS snapshot showed only:
+  - `dps.1 = "send_ir"`
+- We did **not** observe any local DP for “IR payload / learned code / blast now”.
+- Therefore: this specific device appears **cloud-driven** for IR send payload (or otherwise not exposed via the local Tuya DPS interface we can access).
+
+### Practical Recommendation (based on the above)
+- For “one blaster covers most”: prefer **Broadlink RM4 Pro** (IR + 315/433 RF) for TVs + many fans.
+- For LiftMaster/Chamberlain garage doors: plan a dedicated garage controller; don’t expect Broadlink/RF-learners to work due to rolling code.
+
+## Minimal LAN Reachability Tests (Windows)
+- Confirm the device IP (router/Starlink app; or our discovery UI).
+- Test:
+  - `ping <deviceIp>`
+  - `Test-NetConnection <deviceIp> -Port 6668`
+
+If ping works and 6668 succeeds, local connectivity is good.
+
+## Our Repo App: Hardware Discovery (gemini/irBlast)
+App: `gemini/irBlast`
+- UI has “Discover devices on LAN” + Deep scan.
+- Discovery runs in the Vite dev server (Node) and does:
+  - ARP table candidate list (best-effort)
+  - optional /24 deep scan of common ports
+  - TCP probes including **6668**
+  - optional cache write: `gemini/irBlast/user-files/hardware-discovery-cache.json`
+
+Expected “good” summary line:
+- `<deviceIp>: 6668 (looks Tuya-ish)`
+
+## Tuya App Pairing (first-time setup)
+Power via USB; Wi‑Fi provisioning is via Tuya app.
+- Fast blink: EZ pairing
+- Slow blink: AP/compatibility pairing (may or may not broadcast visible SSID depending on model/firmware)
+- Starlink “single SSID” band steering can interfere; force phone onto 2.4GHz if possible.
+
+## Tuya Developer Portal: Link App Account to Project
+Goal: get device into a Cloud Development project so API Explorer can return `localKey`.
+
+1) Create Cloud Development project (choose correct region / data center).
+2) Devices → Link App Account
+3) Add App Account → **Tuya App Account Authorization** (not OAuth 2.0)
+4) Choose **Automatic Link**.
+5) Scan QR code in Tuya app and authorize.
+6) Devices → All Devices: confirm device appears “Online”.
+
+## API Explorer: Retrieve localKey (the missing piece)
+In project → Service API page:
+- Click **Debug** on IoT Core (this opens the API Explorer).
+
+In API Explorer:
+- Use a read endpoint such as “Query Devices in Project” or “Query Device Details”.
+- Find the record where `id` == the deviceId.
+- Look for field:
+  - `localKey` (or `local_key`)
+
+### Common confusion
+- Portal “Device Debugging” page often shows a **public** IP; LAN IP still comes from router/LAN discovery.
+
+## Integration Next Step (once localKey is known)
+To transmit IR from our UI:
+- Implement a backend operation that speaks Tuya local protocol (TCP 6668) using:
+  - `deviceIp`
+  - `deviceId`
+  - `localKey`
+- Expose a thin HTTP endpoint (example: `/api/ir/transmit`) consumed by the UI’s `HttpIrTransportProvider`.
+
+Note: the existing frontend `UfoR1Provider` is speculative; real control should be moved to backend to avoid browser CORS + to keep secrets off the client.
+

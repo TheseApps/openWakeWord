@@ -1,0 +1,92 @@
+---
+description: Pattern: Express API stub should be a thin composition root + encapsulated route registrars + one operation per file (HDI api-stub)
+globs:
+  - "Frank.Hdi/**/api-stub/src/**/*.ts"
+alwaysApply: false
+---
+
+## Intent
+Prevent the “behemoth `server.ts`” failure mode while still avoiding **micro-silo sprawl**. We want the **microservices sweet spot**: small cohesive clusters of files/folders, not 1 monolith and not 100 tiny shards.
+
+This rule documents the **exact pattern** used to refactor:
+- `Frank.Hdi/Frank.Hdi.ai/20260104/FrankHDI/api-stub/src/server.ts`
+
+## Why (the point of this pattern)
+- **Reasonability**: a server file should be “wiring only,” so it’s safe to edit and hard to break.
+- **Testability**: route registration functions can be tested and reasoned about independently.
+- **Change locality**: adding/modifying an endpoint should touch **one route file**, not a giant file.
+- **Strict build safety**: splitting forces TypeScript to compile the whole tree and surfaces typing issues early.
+- **Future reuse**: modules like “binding ensure” become reusable by other routes without copy/paste.
+
+## Required Structure (Sweet Spot)
+Treat `src/server.ts` as a **composition root**.
+
+- **`src/server.ts` must contain**:
+  - `dotenv.config()`
+  - Express `app` creation and middleware
+  - creation of shared infra objects (e.g., PG `Pool`)
+  - calls to **register** route modules (no business logic)
+  - `app.listen(...)`
+
+- **`src/server.ts` must NOT contain**:
+  - SQL text
+  - table/column inspection logic
+  - multi-endpoint blocks that exceed “readable at a glance”
+  - helper functions that are used by multiple routes (extract them)
+
+## Folder Layout (Preferred)
+Use folders for cohesive concerns:
+- `src/routes/` — one file per “route group”
+- `src/bindings/` — operations for binding schema discovery + binding creation
+- `src/pg/` — PG pool creation and PG-related plumbing
+- `src/cache.ts` — ok as a small shared module (keep it small; don’t grow it into a kitchen sink)
+
+Example layout used:
+- `src/server.ts` (thin wiring)
+- `src/routes/RegisterHealthRoutes_Operation.ts`
+- `src/routes/RegisterI18nRoutes_Operation.ts`
+- `src/routes/RegisterCapabilitiesRoutes_Operation.ts`
+- `src/routes/RegisterDebugRoutes_Operation.ts`
+- `src/bindings/GetBindingEntityColumnNamesFromSchema_Operation.ts`
+- `src/bindings/EnsureBindingInstanceIdentifier_Operation.ts`
+- `src/pg/CreatePgPoolFromEnvOrDefault_Operation.ts`
+
+## procIsFile (One primary operation per file)
+If a file contains multiple distinct operations, split it.
+
+Preferred:
+- One exported primary function per file:
+  - `registerI18nRoutes_Operation(app, pool)`
+  - `ensureBindingInstanceIdentifier_Operation(pool, callerId, targetId)`
+  - `createPgPoolFromEnvOrDefault_Operation()`
+
+Allowed:
+- Small inline helpers (only if they are truly local to the primary function).
+
+## Naming rules (Hungarian-ish + long)
+When creating new functions/variables:
+- Prefer explicit, long names:
+  - `txtOperationIdentifier`
+  - `txtSqlTextValue`
+  - `objPgPool`
+  - `txtCallerEntityInstanceIdentifierTextValue`
+- Avoid ambiguous names like `id`, `name`, `data`, `res`.
+
+## Error handling (ubiquitous try/catch)
+Operations that can fail (DB access, schema inspection) must:
+- lead with `try/catch`
+- wrap errors with:
+  - operation/procedure identifier
+  - minimal context keys (argument names, not secrets)
+  - a concrete hint (“what to do next”)
+
+## “No behavior changes while refactoring” (required stance)
+When refactoring a working endpoint:
+- Keep routes, payloads, and status codes unchanged.
+- Move code first; only then improve behavior in a separate, explicit change.
+
+## Build verification (required)
+After refactoring / adding new modules:
+- run `npm run build` in the module folder to ensure TypeScript compiles the entire `src/` tree.
+- If strict-mode build errors appear, fix them in the smallest possible way without behavior changes.
+

@@ -1,23 +1,5 @@
 # Cursor IDE Rules for openWakeWord Project
 
-## IMPORTANT: Application Starting Rules
-
-### NEVER Auto-Start Applications
-**DO NOT start applications in background terminals or automatically.**
-
-When user wants to run/test applications:
-1. **PROVIDE the command** for them to run
-2. **DO NOT use** `is_background: true`
-3. **DO NOT auto-start** servers or long-running processes
-4. **LET THE USER** control when to start/stop apps
-
-Example:
-```
-To run the streaming server:
-cd C:\GitHub\TheseApps\openWakeWord
-.\.venv312\Scripts\python.exe examples/web/streaming_server.py
-```
-
 ## Security Rules
 
 ### API Keys and Secrets Management

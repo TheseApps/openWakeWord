@@ -1,0 +1,13 @@
+# GitHub MCP – enforce real operations and verification
+
+- Always use the official GitHub MCP server tools (e.g., create_branch) for repo operations. Never simulate success.
+- Pre-checks:
+  - Verify repo and base branch exist (GET branches or MCP equivalent).
+  - Assume token scopes do not override repository write permissions.
+- Creation flow (branch):
+  1) Resolve base SHA (main by default).
+  2) Create branch via MCP create_branch (or REST fallback).
+  3) Verify via listing ref/branches; fail if not visible.
+- Error reporting:
+  - 401 invalid token; 403 insufficient repo permission; 404 repo/base not found; 422 ref exists/invalid.
+- Postcondition: Provide final branch URL; never claim success without verification.

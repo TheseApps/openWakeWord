@@ -1,0 +1,113 @@
+
+
+# frank.data + frank.smartProc + frank.hdi (Design North Star)
+
+## Purpose
+Keep the long-term goal explicit while we build short-term import pipelines.
+
+## Definitions
+- **frank.data**: app-agnostic content addressed by stable identifiers (ultimately GUID-based composites).
+- **7-guid tuple**: a canonical multi-axis identifier for a piece of content; used as the stable address across storage backends.
+- **frank.smartProc**: an app-agnostic retrieval/execution layer.
+  - Accepts identity + context, returns content + provenance.
+  - Storage/backend is an implementation detail.
+- **frank.hdi**: persona/context index.
+  - Maintains millions of personas with increasing specificity.
+  - Tracks provenance, confidence, and “why” behind knowledge.
+
+## Core principles
+- **Redundancy/agnosticism wins**:
+  - Data should be usable via multiple stores (SQL Server, Postgres, files) without rewriting identity.
+  - Prefer crosswalk tables/mappings over destructive transforms.
+- **Identity is primary**:
+  - Store *source ids* (SimpleMaps id, ArcGIS object id, dr5hn city id, Wikidata Q-id) alongside Frank identifiers.
+  - Never lose the ability to trace back to source.
+- **Iterate in layers**:
+  - Layer 1: import raw sources “as-is”.
+  - Layer 2: fast-cycle derived tables (city→town→category buckets).
+  - Layer 3: LF2 / localization and OmniGlyph layers.
+
+## Working agreements (for imports)
+- Prefer deterministic pipelines.
+- Always output a small verification query + counts.
+- Always log the reasoning (“why behind what”) into `aRef/chats/...` and/or `Frank.*.ai/*.journal.md`.
+
+
+--
+we want to default to dark theme for everything 
+any ui we make should give the option of both*
+preferably -- a handful of common themes , but .. 
+
+if the world would default to dark theme, i think that that change alone would save ?? millions in volts n watts n shit , and regardless; OUR default is dark theme 
+
+--
+
+---
+# Programming | Coding Standards: 
+
+we prefer "tried and true" over "latest and greatest".. 
+established patterns of years WAY over 'lookit wut wee can doo' .. 
+
+please don't railroad me into dll-hell and confilct ..
+ - one of the goals of these cards is .. 
+ - - lay down the environment
+ - - lay down the tools
+ - - learn(), create(), do()
+ - - clean TF up !
+an `installshield for devs` not just `installshield for apps` 
+
+## Languages:
+user was a C# developer for ~20 years.. 
+choose c#, or languages as `close to` c# as possible
+ - .js, .ps1 .. these are ok 
+ - .py and any number of others are our default, but - when possible; go #1 .cs or #2 .ps1 / .js or #3 py / modern .. if its not on that list, its probably referential
+
+## Properties: 
+j.i.t. props w private vars are great
+/*
+<summary>...</summary>
+*/
+private _someVar;
+public SomeVar
+{
+    get
+    {
+        if(null==_someVar)
+            { _someVar=lazyLoad(); }
+        return _someVar;
+    }
+    set { _someVar=value; }
+}
+
+## Methods: 
+
+## Events: 
+
+## Files : How Many? What Names?
+- lots of little files, not one big one
+- naming.Conventions: 
+    - /OurApi/LocalCopyOfExternal.ANY (<= local copies of 3rd party | oss libraries)
+    - /OurApi/OurFirstApi.Ingress (<=load ext refs, + all of ours)
+    - /OurFirstApi/OurFirstApi.Func1Name
+    - /OurFirstApi/OurFirstApi.Func2Name
+    - /OurFirstApi/OurFirstApi.Func3Name
+    - /OurSecondApi/OurSecondApi.Func1Name
+    - /OurSecondApi/OurSecondApi.Func2Name
+
+# hungarianAndLong
+
+
+## In-File Standards:
+- always `normalize()` .. no `behemoth code`.. 
+ - - we want ONE-Single-Task-Per-Function-No-Exceptions
+ - - if you come across `good` opportunities to reFactor(useYourBestJudgementANdAlwaysDiscuss) => let me know
+
+- we use camelCase, and txtHungarian, and ALL_OfOurNamesAreLongAndNeverJust_Name
+ - - please never (just. not. ever.) use `name` and `id` as fieldNames.. i *WILL* disassemble you, Number Johnny Five !
+ - - the above two Rules are Absolutes , and apply to everything, be it; objectNames, fileNames, property|method|eventNames, etc
+
+- the structure used above is one we want to follow
+- - ## Properties 
+- - ## Methods 
+- - ## Events  
+- each in a collapsible #(end)region `regionName++`, eg `Properties: Prop1, Prop2` || `Events: Evt1, Evt2`

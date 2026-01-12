@@ -1,0 +1,24 @@
+---
+description: Treat module subfolder as working root; avoid repo root clutter
+globs:
+alwaysApply: true
+---
+
+We want to keep the repo root (e.g., `C:\GitHub\TerranAstra\frank\`) from getting crowded.
+
+## workingRootIsModuleFolder
+- When working on a module/app under a subfolder (example: `Frank.Input/Frank.Input.Webcam/Frank.Webcam.002/`), treat that **module folder as the working root**.
+- Default any generated **outputs/artifacts** (json, logs, temp files, sample outputs) to live **inside the module folder** (or a subfolder like `out/`, `artifacts/`, `aRef/` inside that module) unless explicitly instructed otherwise.
+
+## avoidRepoRootByDefault
+- Do **not** write new files to the repo root by default.
+- If a command example would normally write to the current working directory, prefer examples that write to:
+  - `.\out\...` (relative to the module folder)
+  - or an explicit module-relative path (e.g., `Frank.Input/Frank.Input.Webcam/Frank.Webcam.002/out/...`)
+
+## crossModuleInterop
+- If module A produces a file that module B consumes, prefer:
+  - writing the file under module A (e.g., `A/out/...`)
+  - then passing that path explicitly to module B
+- Avoid “mysterious implicit current directory” behavior.
+

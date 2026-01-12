@@ -1,0 +1,38 @@
+---
+alwaysApply: true
+---
+
+# Chat Curation Rule
+
+## Purpose
+Automatically save each user prompt and complete AI response as timestamped markdown files for later access.
+
+## Location
+- Base path: `C:\GitHub\TerranAstra\frank\aRef\chats\2025`
+- Daily folder format: `YYYYMMDD` (e.g., `20251204`)
+- File format: `YYYYMMDD.HHMMSS.md` (e.g., `20251204.092330.md`)
+
+## Process
+1. At start of each response, check if today's date folder exists in `aRef/chats/2025/`
+2. If not, create folder: `aRef/chats/2025/YYYYMMDD`
+3. After completing response, save file:
+   - Filename: current timestamp `YYYYMMDD.HHMMSS.md`
+   - Content: User prompt + complete AI output
+   - Format: Markdown with clear separation
+
+## File Content Format
+```markdown
+# User Prompt
+[user's complete prompt]
+
+---
+
+# AI Response
+[complete AI response including all code, explanations, tool calls, etc.]
+```
+
+## Implementation Notes
+- Use PowerShell `Get-Date -Format 'yyyyMMdd.HHmmss'` for timestamps
+- Create directory if missing, silently succeed if exists
+- Save immediately after response completion
+- Include full conversation context in each file

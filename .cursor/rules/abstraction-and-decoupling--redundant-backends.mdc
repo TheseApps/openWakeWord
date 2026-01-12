@@ -1,0 +1,49 @@
+---
+alwaysApply: true
+---
+
+## abstraction-and-decoupling--redundant-backends
+
+### Intent (why)
+We want **progress now** without painting ourselves into a corner.
+
+So when implementing a capability (webcam/mic/etc.), we implement the **chosen backend** immediately (so it works), while also leaving a clean **abstraction seam** so future backends can be swapped in (Docker/Linux/MediaFoundation/vendor SDK) without rewriting callers.
+
+### Rule (what to do)
+When adding a new capability that may have multiple backends:
+- Implement the **primary chosen backend** (the one that works on the current machine).
+- Also add:
+  - **Contract layer**: request/response records + an interface (backend-agnostic)
+  - **Stub backend**: truthful “not supported yet” results with next steps
+  - **Backend selector**: one operation that chooses the backend (OS/env/availability checks)
+
+### Call surface (who uses what)
+Callers must call only **Frank-level operations** (examples):
+- `openCamera`
+- `takePicture`
+- `takeVideo`
+- `streamStart`
+
+Callers must **not** call backend-specific implementations directly (no `ffmpeg-dshow` types in UI/host code).
+
+### Composition root pattern (how)
+- Keep a thin composition root (CLI/app host) that:
+  - parses args / reads inputs
+  - calls **one** engine operation
+  - writes structured outputs (JSON)
+- Put backend details behind the contract seam:
+  - `Backends/WindowsFfmpegDirectShow/...`
+  - `Backends/Stub/...`
+
+### Truthful stubs (required)
+If a backend isn’t implemented yet, return a structured, honest result:
+- `flgSupported = false`
+- `txtReasonLabel = notImplemented`
+- `txtNextStepLabel` must include a concrete next action (“use Windows backend; implement MediaFoundation; run X; install Y”).
+
+### Keep it modular (sweet spot)
+Follow:
+- file=>folder and proc=>file (one primary operation per file)
+- no behemoth “manager” classes
+- ubiquitous try/catch/finally with actionable error wrapping
+
