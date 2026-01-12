@@ -125,24 +125,44 @@ async def save_recording_handler(request):
                 print("Received empty audio data for saving.")
                 return web.Response(text="No audio data received in the upload.", status=400)
 
-            # --- Configure WAV file parameters ---
-            # These values MUST match the actual audio format sent from your client-side recorder.
-            # If your client sends different formats, you'll need to pass these
-            # as additional fields in the multipart request or determine them programmatically.
-            n_channels = 1      # Mono (1 channel)
-            samp_width = 2      # 16-bit PCM (2 bytes per sample)
-            framerate = 16000   # 16 kHz sample rate
-
+            # The browser sends WebM/Opus format, not raw PCM
+            # We need to convert it or save as-is
+            
+            # For now, save as WebM and inform user
+            webm_path = file_path.replace('.wav', '.webm')
+            
             try:
-                # Write the buffered audio data to a WAV file with the correct header
-                with wave.open(file_path, 'wb') as wf:
-                    wf.setnchannels(n_channels)
-                    wf.setsampwidth(samp_width)
-                    wf.setframerate(framerate)
-                    wf.writeframes(audio_bytes) # Write all buffered frames
+                # Save the WebM data
+                with open(webm_path, 'wb') as f:
+                    f.write(audio_bytes)
                 
-                print(f"Successfully saved recording to {file_path}")
-                return web.Response(text=f"File saved as {file_path}")
+                print(f"Saved WebM recording to {webm_path}")
+                
+                # Try to convert to WAV if ffmpeg is available
+                try:
+                    import subprocess
+                    cmd = [
+                        'ffmpeg', '-i', webm_path,
+                        '-acodec', 'pcm_s16le',  # 16-bit PCM
+                        '-ar', '16000',          # 16kHz
+                        '-ac', '1',              # Mono
+                        '-y',                    # Overwrite
+                        file_path
+                    ]
+                    result = subprocess.run(cmd, capture_output=True, stderr=subprocess.PIPE)
+                    
+                    if result.returncode == 0:
+                        os.remove(webm_path)  # Remove WebM after conversion
+                        print(f"Converted to WAV: {file_path}")
+                        return web.Response(text=f"File saved as {file_path}")
+                    else:
+                        print(f"FFmpeg conversion failed: {result.stderr.decode()}")
+                        
+                except (FileNotFoundError, Exception) as e:
+                    print(f"FFmpeg not available: {e}")
+                
+                # FFmpeg not available, keep WebM
+                return web.Response(text=f"File saved as {webm_path} (WebM format - install ffmpeg for WAV conversion)")
 
             except wave.Error as we:
                 # Catches errors specific to the wave module (e.g., invalid parameters)
